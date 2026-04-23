@@ -116,6 +116,7 @@ page = st.sidebar.radio("Navigation", [
     "🚀 Market Overview",
     "📈 Equity & Analytics",
     "🎯 Top Predictions",
+    "📊 Stock Chart Explorer",
     "🛡️ Backtest Report",
     "🤖 Model Health",
     "📋 System Logs"
@@ -286,3 +287,73 @@ elif page == "📋 System Logs":
             lines = f.readlines()
             st.text_area("Last 100 entries", "".join(lines[-100:]), height=600)
             st.button("Refresh Logs")
+
+elif page == "📊 Stock Chart Explorer":
+    st.title("Interactive Stock Chart")
+    st.markdown("Pilih saham yang masuk dalam rekomendasi AI atau ketik kode manual untuk melihat pergerakan harganya. Sangat berguna untuk mengkonfirmasi sinyal AI.")
+    
+    import yfinance as yf
+    
+    # Get available tickers from picks to suggest
+    suggested_tickers = ['BBCA.JK', 'BRPT.JK', 'TLKM.JK', 'ADRO.JK'] # Fallbacks
+    if not picks.empty and 'Ticker' in picks.columns:
+        suggested_tickers = picks['Ticker'].tolist()
+        
+    # Allows entering custom like 'GOTO.JK'
+    selected_ticker = st.selectbox("Pilih / Ketik Ticker Saham (Wajib akhiran .JK)", suggested_tickers)
+    
+    if selected_ticker:
+        with st.spinner(f"Mengambil data live untuk {selected_ticker}..."):
+            try:
+                df_chart = yf.download(selected_ticker, period="6mo", progress=False)
+                
+                if not df_chart.empty:
+                    # Clean up yfinance MultiIndex output if present
+                    if isinstance(df_chart.columns, pd.MultiIndex):
+                        df_chart.columns = df_chart.columns.droplevel(1)
+                    df_chart = df_chart.reset_index()
+                    
+                    # Ensure timezone-naive
+                    if df_chart['Date'].dt.tz is not None:
+                        df_chart['Date'] = df_chart['Date'].dt.tz_localize(None)
+                    
+                    # Plotly Candlestick
+                    fig = go.Figure(data=[go.Candlestick(x=df_chart['Date'],
+                                    open=df_chart['Open'],
+                                    high=df_chart['High'],
+                                    low=df_chart['Low'],
+                                    close=df_chart['Close'],
+                                    name=selected_ticker)])
+                    
+                    # Add EMA 20 (Fast Trend)
+                    df_chart['EMA20'] = df_chart['Close'].ewm(span=20, adjust=False).mean()
+                    fig.add_trace(go.Scatter(x=df_chart['Date'], y=df_chart['EMA20'], 
+                                             line=dict(color='orange', width=2), 
+                                             name='Trend Cepat (EMA 20)'))
+                                             
+                    # Add EMA 50 (Mid Trend)
+                    df_chart['EMA50'] = df_chart['Close'].ewm(span=50, adjust=False).mean()
+                    fig.add_trace(go.Scatter(x=df_chart['Date'], y=df_chart['EMA50'], 
+                                             line=dict(color='cyan', width=2), 
+                                             name='Trend Menengah (EMA 50)'))
+                    
+                    fig.update_layout(
+                        title=f"Grafik Candlestick {selected_ticker} (6 Bulan Terakhir)",
+                        yaxis_title='Harga (IDR)',
+                        template='plotly_dark',
+                        xaxis_rangeslider_visible=False,
+                        height=600
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    with st.expander("💡 Cara Membaca Grafik", expanded=True):
+                        st.markdown('''
+                        * **Batang Hijau (Naik)**: Harga tutup hari itu lebih tinggi dari harga bukanya.
+                        * **Batang Merah (Turun)**: Harga tutup hari itu lebih rendah dari harga bukanya.
+                        * **Garis EMA (Rata-rata)**: Jika harga saham (batang merah/hijau) berada di ATAS garis Oranye & Biru Muda, itu artinya saham sedang Uptrend (Layak Beli). Jika di bawahnya, berarti sedang Downtrend (Risiko Tinggi).
+                        ''')
+                else:
+                    st.error(f"Data untuk {selected_ticker} kosong. Pastikan pasar tidak tutup terlalu lama atau kodenya benar.")
+            except Exception as e:
+                st.error(f"Gagal mengambil data dari Yahoo Finance: {e}")
