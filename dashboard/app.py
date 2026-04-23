@@ -387,6 +387,9 @@ elif page == "📖 Trading Logbook":
         initial_data.to_csv(logbook_path, index=False)
         
     df_log = pd.read_csv(logbook_path)
+    # FIX: Convert Tanggal string to datetime.date object for Streamlit DateColumn
+    if 'Tanggal' in df_log.columns:
+        df_log['Tanggal'] = pd.to_datetime(df_log['Tanggal'], errors='coerce').dt.date
     
     st.info("💡 **Tips:** Klik tombol '+' di bagian bawah tabel untuk menambah baris kosong baru. Tekan tombol `Delete` di keyboard untuk menghapus baris.")
     
