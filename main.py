@@ -3,6 +3,9 @@ import sqlite3
 import pandas as pd
 import yaml
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from data.data_loader import fetch_data, fetch_benchmark, fetch_idx_tickers
 from features.feature_engineering import add_features_and_labels
@@ -155,10 +158,6 @@ def main():
     else:
         logger.warning("No high-confidence signals today.")
 
-from dotenv import load_dotenv
-load_dotenv()
-
-# ... inside main logic:
     # Telegram Notification
     tg_cfg = CONFIG.get('telegram', {})
     if tg_cfg.get('enabled') and not buy_picks.empty:
