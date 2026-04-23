@@ -159,6 +159,12 @@ def main():
 
     try:
         conn = sqlite3.connect(DB_FILE)
+        # Ensure column exists for production upgrade
+        try:
+            conn.execute("ALTER TABLE historical_picks ADD COLUMN inserted_at DATETIME")
+        except:
+            pass # Column already exists
+            
         picks['inserted_at'] = datetime.now()
         picks.to_sql('historical_picks', conn, if_exists='append', index=False)
         conn.close()
