@@ -34,5 +34,8 @@ paths:
   picks_file: "data/latest_picks.csv"
   log_file: "app_error.log"
 
-# telegram:
-#   token: "YOUR_TOKEN_HERE" # Use env var TELEGRAM_BOT_TOKEN
+# WhatsApp Notifications (via CallMeBot)
+whatsapp:
+  enabled: true
+  phone: "085718463908" # Your WhatsApp number
+  apikey: "YOUR_API_KEY_HERE" # Put the key you got from CallMeBot here
