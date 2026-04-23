@@ -23,7 +23,8 @@ def run_backtest(df: pd.DataFrame, model_path: str = MODEL_PATH):
         'SMA_5', 'SMA_10', 'SMA_20', 'SMA_50',
         'BB_High', 'BB_Low', 'BB_Width', 
         'Return_1d', 'Return_3d', 'Return_7d',
-        'Vol_7d', 'Vol_14d', 'Volume_Change_1d', 'Momentum_20'
+        'Vol_7d', 'Vol_14d', 'Volume_Change_1d', 'Momentum_20',
+        'USD_IDR_Return', 'SP500_Return', 'Close_ZScore_20'
     ]
     
     # Filter valid rows and drop the last 3 days where future returns are NaN
@@ -48,7 +49,9 @@ def run_backtest(df: pd.DataFrame, model_path: str = MODEL_PATH):
         top_picks = group.sort_values(by='Prob', ascending=False).head(3)
         
         # Calculate the average 3-day return of these 3 picks
-        avg_trade_return = top_picks['Future_Return_3d'].mean()
+        # Incorporate trading fees (0.15% buy + 0.25% sell = 0.4% round trip)
+        TRX_FEE = 0.004
+        avg_trade_return = top_picks['Future_Return_3d'].mean() - TRX_FEE
         
         # Win is if avg return > 0
         is_win = 1 if avg_trade_return > 0 else 0

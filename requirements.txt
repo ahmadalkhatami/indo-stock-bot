@@ -6,3 +6,8 @@ xgboost
 scikit-learn
 joblib
 python-telegram-bot
+streamlit
+shap
+lightgbm
+optuna
+sqlalchemy

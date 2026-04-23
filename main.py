@@ -56,6 +56,17 @@ def main():
         # Save picks for Telegram Bot
         top_5.to_csv(PICKS_FILE, index=False)
         print(f"\nPicks saved to {PICKS_FILE}")
+        
+        # Save to SQLite Database for the Dashboard
+        import sqlite3
+        DB_FILE = os.path.join(os.path.dirname(__file__), 'data', 'predictions.db')
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            top_5.to_sql('historical_picks', conn, if_exists='append', index=False)
+            conn.close()
+            print(f"Picks successfully saved to SQLite database at {DB_FILE}")
+        except Exception as e:
+            print(f"Failed to save to SQLite: {e}")
     else:
         print("No picks generated.")
 

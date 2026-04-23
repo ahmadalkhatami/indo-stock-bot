@@ -4,7 +4,7 @@ import ta
 
 def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Generate technical indicators, features, and target labels.
+    Generate technical indicators, macro features, and target labels.
     """
     # Ensure data is sorted by Ticker and Date to avoid leakage
     df = df.sort_values(by=['Ticker', 'Date']).reset_index(drop=True)
@@ -54,10 +54,19 @@ def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
         # Price momentum (Close / SMA_20)
         group['Momentum_20'] = close / group['SMA_20'] - 1
         
+        # Statistical Feature: Z-Score of Close Price
+        group['Close_ZScore_20'] = (close - group['SMA_20']) / close.rolling(window=20).std()
+        
+        # Macro Features
+        if 'USD_IDR' in group.columns and 'SP500' in group.columns:
+            group['USD_IDR_Return'] = group['USD_IDR'].pct_change()
+            group['SP500_Return'] = group['SP500'].pct_change()
+        else:
+            group['USD_IDR_Return'] = 0.0
+            group['SP500_Return'] = 0.0
+        
         # --- Target Variable ---
         # Predict probability that stock will increase by at least 2% within next 3 trading days
-        # Future 3-day return = (Close(t+3) - Close(t)) / Close(t)
-        # We use shift(-3) to look into the future for labeling
         group['Future_Return_3d'] = close.shift(-3) / close - 1
         
         # Label: 1 if future return >= +2% (0.02), 0 otherwise

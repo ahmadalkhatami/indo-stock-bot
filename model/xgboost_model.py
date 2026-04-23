@@ -26,7 +26,8 @@ class StockPredictor:
             'SMA_5', 'SMA_10', 'SMA_20', 'SMA_50',
             'BB_High', 'BB_Low', 'BB_Width', 
             'Return_1d', 'Return_3d', 'Return_7d',
-            'Vol_7d', 'Vol_14d', 'Volume_Change_1d', 'Momentum_20'
+            'Vol_7d', 'Vol_14d', 'Volume_Change_1d', 'Momentum_20',
+            'USD_IDR_Return', 'SP500_Return', 'Close_ZScore_20'
         ]
 
     def prepare_data(self, df: pd.DataFrame, training: bool = True):

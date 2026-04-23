@@ -5,25 +5,58 @@ from typing import List
 def fetch_data(tickers: List[str], period: str = "5y") -> pd.DataFrame:
     """
     Fetch OHLCV data for given tickers from Yahoo Finance.
+    Includes Macro data (USD/IDR and S&P 500).
     """
     print(f"Fetching data for {len(tickers)} tickers for the past {period}...")
     all_data = []
     
     for ticker in tickers:
         try:
-            # yf.download can be noisy, but it's the most reliable way to get history
             df = yf.download(ticker, period=period, progress=False)
             if not df.empty:
-                # Handle potential multi-index columns returned by newer yfinance versions
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.droplevel(1)
-                    
                 df = df.reset_index()
                 df['Ticker'] = ticker
                 all_data.append(df)
         except Exception as e:
             print(f"Failed to fetch {ticker}: {e}")
             
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    return pd.DataFrame()
+    if not all_data:
+        return pd.DataFrame()
+        
+    df_stocks = pd.concat(all_data, ignore_index=True)
+    
+    # Fetch Macro Data
+    print("Fetching Macro Data (USD/IDR, S&P 500)...")
+    macro_tickers = {"IDR=X": "USD_IDR", "^GSPC": "SP500"}
+    macro_dfs = []
+    for ticker, name in macro_tickers.items():
+        try:
+            mdf = yf.download(ticker, period=period, progress=False)
+            if not mdf.empty:
+                if isinstance(mdf.columns, pd.MultiIndex):
+                    mdf.columns = mdf.columns.droplevel(1)
+                mdf = mdf.reset_index()[['Date', 'Close']]
+                mdf = mdf.rename(columns={'Close': name})
+                macro_dfs.append(mdf)
+        except Exception as e:
+            print(f"Failed to fetch macro {ticker}: {e}")
+            
+    if macro_dfs:
+        macro_merged = macro_dfs[0]
+        for mdf in macro_dfs[1:]:
+            macro_merged = pd.merge(macro_merged, mdf, on='Date', how='outer')
+        # Forward fill macro data to handle timezone/holiday mismatches
+        macro_merged = macro_merged.sort_values('Date').ffill()
+        
+        # Merge macro into stock data
+        df_stocks['Date'] = pd.to_datetime(df_stocks['Date']).dt.tz_localize(None)
+        macro_merged['Date'] = pd.to_datetime(macro_merged['Date']).dt.tz_localize(None)
+        df_stocks = pd.merge(df_stocks, macro_merged, on='Date', how='left')
+        
+        # Group by ticker and forward fill missing macro data just in case
+        df_stocks = df_stocks.sort_values(['Ticker', 'Date']).groupby('Ticker', group_keys=False).ffill()
+        df_stocks = df_stocks.bfill() # bfill any initial NaNs
+        
+    return df_stocks
