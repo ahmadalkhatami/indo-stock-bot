@@ -181,10 +181,10 @@ if page == "🚀 Market Overview":
 
     # Metrics
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Return", _pct(m.get('total_return'), True))
-    c2.metric("Win Rate", _pct(m.get('win_rate')))
-    c3.metric("Sharpe Ratio", f"{m.get('sharpe_ratio', 0):.2f}")
-    c4.metric("Max Drawdown", _pct(m.get('max_drawdown')))
+    c1.metric("Total Return", _pct(m.get('total_return'), True), help="Total keuntungan/kerugian (Profit/Loss). Angka positif (+) berarti strategi ini menghasilkan uang.")
+    c2.metric("Win Rate", _pct(m.get('win_rate')), help="Tingkat akurasi. 50% berarti dari 10 kali beli, 5 di antaranya profit.")
+    c3.metric("Sharpe Ratio", f"{m.get('sharpe_ratio', 0):.2f}", help="Tingkat 'Kesehatan' profit. Di atas 1.0 sangat bagus, di bawah 0 berarti terlalu berisiko.")
+    c4.metric("Max Drawdown", _pct(m.get('max_drawdown')), help="Risiko Terburuk. Persentase penurunan modal terbesar yang pernah dialami AI selama pengetesan.")
 
     # Benchmark Comparison
     st.markdown("---")
@@ -192,9 +192,9 @@ if page == "🚀 Market Overview":
     bench_ret = m.get('benchmark_total_return', 0)
     alpha = m.get('total_return', 0) - float(bench_ret)
     b1, b2, b3 = st.columns(3)
-    b1.metric("Alpha", _pct(alpha, True))
-    b2.metric("IHSG Return", _pct(float(bench_ret)))
-    b3.metric("Total Trades", int(m.get('num_trades', 0)))
+    b1.metric("Alpha (Nilai Tambah AI)", _pct(alpha, True), help="Seberapa jauh AI mengalahkan IHSG (pasar umum). Angka positif berarti AI bekerja lebih baik daripada beli diam (Buy & Hold).")
+    b2.metric("IHSG Return", _pct(float(bench_ret)), help="Kenaikan/Penurunan IHSG sebagai pembanding standar.")
+    b3.metric("Total Trades", int(m.get('num_trades', 0)), help="Berapa kali AI melakukan transaksi beli/jual selama ini.")
 
 elif page == "📈 Equity & Analytics":
     st.title("Equity Analytics")
@@ -217,6 +217,15 @@ elif page == "🎯 Top Predictions":
     if picks.empty:
         st.info("No picks available. Please run the AI pipeline from the Overview page.")
     else:
+        with st.expander("💡 Cara Membaca Rekomendasi (Panduan Pemula)", expanded=True):
+            st.markdown("""
+            * **Ticker**: Kode saham (contoh: *BBCA.JK* adalah BCA).
+            * **Probability**: Tingkat keyakinan AI. Angka **0.75** berarti AI yakin **75%** harga akan naik.
+            * **Signal**: Fokus HANYA pada saham dengan status **BUY**.
+            * **Sektor**: Melihat tren. Jika banyak rekomendasi BUY dari sektor *Energy*, berarti sektor energi sedang jadi favorit pasar (arus uang masuk ke sana).
+            * **Saran untuk Pemula**: Jangan gunakan seluruh modal untuk 1 saham. Bagi rata (diversifikasi) ke beberapa rekomendasi teratas untuk keamanan.
+            """)
+            
         # Pre-process picks to ensure numerical columns for styling
         if 'probability' in picks.columns:
             picks['probability'] = pd.to_numeric(picks['probability'], errors='coerce')
@@ -241,6 +250,16 @@ elif page == "🛡️ Backtest Report":
 
 elif page == "🤖 Model Health":
     st.title("AI Model Diagnostic")
+    
+    with st.expander("📚 Apa Arti Skor Ini?"):
+        st.markdown("""
+        *Halaman ini khusus untuk mengecek 'seberapa pintar' AI saat ini berdasarkan tes ujian sejarah.*
+        * **AUC-ROC**: Skor ujian keseluruhan AI (Maksimal 1.0). Di atas 0.55 berarti AI lebih pintar dari sekadar menebak koin (50:50).
+        * **Precision**: Akurasi Sinyal Beli. Jika Precision 0.60, berarti dari 10 kali AI menyuruh beli, 6 di antaranya benar-benar naik.
+        * **Recall**: Kemampuan AI menemukan momentum. Semakin tinggi, semakin AI pandai 'tidak kelewatan' saham bagus.
+        * **Feature Importance**: Tabel yang menunjukkan data apa yang paling diandalkan AI saat ini (misal: Volume, Sentimen, atau Tren Asing).
+        """)
+
     if arts['metrics'] is not None:
         m = arts['metrics'].iloc[0]
         c1, c2, c3 = st.columns(3)
