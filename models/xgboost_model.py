@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import joblib
+import optuna
 from xgboost import XGBClassifier
 from sklearn.metrics import precision_score, recall_score, roc_auc_score, roc_curve
 from sklearn.model_selection import TimeSeriesSplit
@@ -49,6 +50,43 @@ class StockPredictor:
 
         X = df_train[self.features]
         y = df_train[self.target]
+
+        print("\nStarting Optuna Hyperparameter Tuning...")
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        def objective(trial):
+            param = {
+                'n_estimators': trial.suggest_int('n_estimators', 100, 300),
+                'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
+                'max_depth': trial.suggest_int('max_depth', 3, 7),
+                'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+                'n_jobs': -1,
+                'random_state': 42,
+                'eval_metric': 'logloss',
+            }
+
+            tscv_tune = TimeSeriesSplit(n_splits=3)
+            scores = []
+
+            for tr, te in tscv_tune.split(X):
+                model = XGBClassifier(**param)
+                model.fit(X.iloc[tr], y.iloc[tr])
+                y_prob = model.predict_proba(X.iloc[te])[:, 1]
+                scores.append(roc_auc_score(y.iloc[te], y_prob))
+
+            return np.mean(scores)
+
+        study = optuna.create_study(direction='maximize')
+        study.optimize(objective, n_trials=20)
+
+        print("\nBest Hyperparameters Found:")
+        for key, value in study.best_params.items():
+            print(f"  {key}: {value}")
+
+        best_params = study.best_params.copy()
+        best_params.update({'random_state': 42, 'n_jobs': -1, 'eval_metric': 'logloss'})
+        self.model = XGBClassifier(**best_params)
 
         tscv = TimeSeriesSplit(n_splits=5)
         metrics = {'precision': [], 'recall': [], 'roc_auc': []}

@@ -86,7 +86,19 @@ def main():
     print("=== Indonesian Stock Market Prediction System ===")
 
     print("\n[1/5] Fetching Data...")
-    tickers = fetch_idx_tickers()
+    tickers_idx80 = fetch_idx_tickers("IDX80")
+    tickers_smc   = fetch_idx_tickers("SMC-LIQUID") # Mengambil saham Small-Mid Cap yang sangat likuid/trending
+    
+    # Gabungkan dan buang duplikat
+    tickers = list(set(tickers_idx80 + tickers_smc))
+    
+    # VIP / TRENDING TICKERS Manual (Jika ada saham anomali khusus)
+    vip_tickers = ['WBSA.JK']
+    for t in vip_tickers:
+        if t not in tickers:
+            tickers.append(t)
+            
+    print(f"Total Tickers to Analyze: {len(tickers)} (Dinamis: IDX80 + SMC-LIQUID + VIPs)")
     df_raw = fetch_data(tickers, period="5y")
     if df_raw.empty:
         print("Failed to fetch data. Exiting.")
@@ -98,7 +110,7 @@ def main():
 
     print("\n[3/5] Training Model...")
     predictor = StockPredictor(
-        target='target_binary', confidence_threshold=CONFIDENCE_THRESHOLD
+        target='target_strong', confidence_threshold=CONFIDENCE_THRESHOLD
     )
     predictor.train_and_evaluate(df_features)
 
