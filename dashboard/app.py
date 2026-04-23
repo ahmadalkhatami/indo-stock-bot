@@ -117,6 +117,7 @@ page = st.sidebar.radio("Navigation", [
     "📈 Equity & Analytics",
     "🎯 Top Predictions",
     "📊 Stock Chart Explorer",
+    "📖 Trading Logbook",
     "🛡️ Backtest Report",
     "🤖 Model Health",
     "📋 System Logs"
@@ -300,12 +301,19 @@ elif page == "📊 Stock Chart Explorer":
         suggested_tickers = picks['Ticker'].tolist()
         
     # Allows entering custom like 'GOTO.JK'
-    selected_ticker = st.selectbox("Pilih / Ketik Ticker Saham (Wajib akhiran .JK)", suggested_tickers)
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        selected_ticker = st.selectbox("Pilih / Ketik Ticker Saham (Wajib akhiran .JK)", suggested_tickers)
+    with col2:
+        period_label = st.selectbox("Rentang Waktu", ["1 Bulan", "3 Bulan", "6 Bulan", "1 Tahun", "5 Tahun"], index=2)
+        
+    period_map = {"1 Bulan": "1mo", "3 Bulan": "3mo", "6 Bulan": "6mo", "1 Tahun": "1y", "5 Tahun": "5y"}
+    period = period_map[period_label]
     
     if selected_ticker:
-        with st.spinner(f"Mengambil data live untuk {selected_ticker}..."):
+        with st.spinner(f"Mengambil data {period_label} untuk {selected_ticker}..."):
             try:
-                df_chart = yf.download(selected_ticker, period="6mo", progress=False)
+                df_chart = yf.download(selected_ticker, period=period, progress=False)
                 
                 if not df_chart.empty:
                     # Clean up yfinance MultiIndex output if present
@@ -338,7 +346,7 @@ elif page == "📊 Stock Chart Explorer":
                                              name='Trend Menengah (EMA 50)'))
                     
                     fig.update_layout(
-                        title=f"Grafik Candlestick {selected_ticker} (6 Bulan Terakhir)",
+                        title=f"Grafik Candlestick {selected_ticker} ({period_label} Terakhir)",
                         yaxis_title='Harga (IDR)',
                         template='plotly_dark',
                         xaxis_rangeslider_visible=False,
@@ -357,3 +365,45 @@ elif page == "📊 Stock Chart Explorer":
                     st.error(f"Data untuk {selected_ticker} kosong. Pastikan pasar tidak tutup terlalu lama atau kodenya benar.")
             except Exception as e:
                 st.error(f"Gagal mengambil data dari Yahoo Finance: {e}")
+
+elif page == "📖 Trading Logbook":
+    st.title("Trading Logbook (Jurnal Trading)")
+    st.markdown("Catat setiap transaksi beli/jual kamu di sini agar rapi seperti investor profesional.")
+    
+    logbook_path = os.path.join(ROOT, "data", "trading_logbook.csv")
+    
+    # Initialize Logbook if not exist
+    if not os.path.exists(logbook_path):
+        initial_data = pd.DataFrame({
+            "Tanggal": [pd.Timestamp.now().strftime("%Y-%m-%d")],
+            "Ticker": ["BBCA.JK"],
+            "Aksi": ["BUY"],
+            "Harga": [10000],
+            "Lot": [10],
+            "Total_Nilai": [10000000],
+            "Catatan": ["Coba-coba mengikuti AI 🚀"]
+        })
+        os.makedirs(os.path.dirname(logbook_path), exist_ok=True)
+        initial_data.to_csv(logbook_path, index=False)
+        
+    df_log = pd.read_csv(logbook_path)
+    
+    st.info("💡 **Tips:** Klik tombol '+' di bagian bawah tabel untuk menambah baris kosong baru. Tekan tombol `Delete` di keyboard untuk menghapus baris.")
+    
+    # Use st.data_editor to easily edit records
+    edited_df = st.data_editor(
+        df_log,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "Tanggal": st.column_config.DateColumn("Tanggal", format="YYYY-MM-DD"),
+            "Aksi": st.column_config.SelectboxColumn("Aksi", options=["BUY", "SELL", "HOLD"]),
+            "Harga": st.column_config.NumberColumn("Harga (IDR)", min_value=0, format="%d"),
+            "Lot": st.column_config.NumberColumn("Jumlah Lot", min_value=1, format="%d"),
+            "Total_Nilai": st.column_config.NumberColumn("Total Transaksi", min_value=0, format="%d"),
+        }
+    )
+    
+    if st.button("💾 Simpan Perubahan Jurnal", use_container_width=True):
+        edited_df.to_csv(logbook_path, index=False)
+        st.success("Jurnal berhasil disimpan permanen! 📒✅")
