@@ -117,7 +117,6 @@ page = st.sidebar.radio("Navigation", [
     "📈 Equity & Analytics",
     "🎯 Top Predictions",
     "📊 Stock Chart Explorer",
-    "📖 Trading Logbook",
     "🛡️ Backtest Report",
     "🤖 Model Health",
     "📋 System Logs"
@@ -365,48 +364,3 @@ elif page == "📊 Stock Chart Explorer":
                     st.error(f"Data untuk {selected_ticker} kosong. Pastikan pasar tidak tutup terlalu lama atau kodenya benar.")
             except Exception as e:
                 st.error(f"Gagal mengambil data dari Yahoo Finance: {e}")
-
-elif page == "📖 Trading Logbook":
-    st.title("Trading Logbook (Jurnal Trading)")
-    st.markdown("Catat setiap transaksi beli/jual kamu di sini agar rapi seperti investor profesional.")
-    
-    logbook_path = os.path.join(ROOT, "data", "trading_logbook.csv")
-    
-    # Initialize Logbook if not exist
-    if not os.path.exists(logbook_path):
-        initial_data = pd.DataFrame({
-            "Tanggal": [pd.Timestamp.now().strftime("%Y-%m-%d")],
-            "Ticker": ["BBCA.JK"],
-            "Aksi": ["BUY"],
-            "Harga": [10000],
-            "Lot": [10],
-            "Total_Nilai": [10000000],
-            "Catatan": ["Coba-coba mengikuti AI 🚀"]
-        })
-        os.makedirs(os.path.dirname(logbook_path), exist_ok=True)
-        initial_data.to_csv(logbook_path, index=False)
-        
-    df_log = pd.read_csv(logbook_path)
-    # FIX: Convert Tanggal string to datetime.date object for Streamlit DateColumn
-    if 'Tanggal' in df_log.columns:
-        df_log['Tanggal'] = pd.to_datetime(df_log['Tanggal'], errors='coerce').dt.date
-    
-    st.info("💡 **Tips:** Klik tombol '+' di bagian bawah tabel untuk menambah baris kosong baru. Tekan tombol `Delete` di keyboard untuk menghapus baris.")
-    
-    # Use st.data_editor to easily edit records
-    edited_df = st.data_editor(
-        df_log,
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "Tanggal": st.column_config.DateColumn("Tanggal", format="YYYY-MM-DD"),
-            "Aksi": st.column_config.SelectboxColumn("Aksi", options=["BUY", "SELL", "HOLD"]),
-            "Harga": st.column_config.NumberColumn("Harga (IDR)", min_value=0, format="%d"),
-            "Lot": st.column_config.NumberColumn("Jumlah Lot", min_value=1, format="%d"),
-            "Total_Nilai": st.column_config.NumberColumn("Total Transaksi", min_value=0, format="%d"),
-        }
-    )
-    
-    if st.button("💾 Simpan Perubahan Jurnal", use_container_width=True):
-        edited_df.to_csv(logbook_path, index=False)
-        st.success("Jurnal berhasil disimpan permanen! 📒✅")

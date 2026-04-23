@@ -65,10 +65,10 @@ Jalankan file `Launch IndoStockBot.command`.
 1.  **Overview**: Lihat ringkasan performa portofolio metrik (Return, Win Rate, Alpha).
 2.  **Stock Chart Explorer**: Fitur untuk melihat pergerakan harga riil (live candlestick) dari saham-saham pilihan AI secara interaktif dengan indikator EMA.
 3.  **Top Predictions**: Hasil analisa harian (saham yang masuk rating BUY).
-4.  **Trading Logbook**: Buku jurnal interaktif untuk mencatat setiap posisi beli/jual secara permanen.
-5.  **Scheduler**: Atur jam eksekusi otomatis (biasanya jam 16:30 WIB saat pasar tutup).
-6.  **Manual Execution**: Klik "🚀 EXECUTE AI PIPELINE" jika ingin menjalankan analisis saat ini juga.
-7.  **System Logs**: Gunakan tab ini untuk melihat diagnostic.
+4.  **Scheduler**: Atur jam eksekusi otomatis (biasanya jam 16:30 WIB saat pasar tutup).
+5.  **Manual Execution**: Klik "🚀 EXECUTE AI PIPELINE" jika ingin menjalankan analisis saat ini juga.
+6.  **System Logs**: Gunakan tab ini untuk melihat diagnostic.
+
 
 ### Troubleshooting
 - **Missing Data**: Jika data yfinance gagal, periksa koneksi internet atau coba jalankan kembali pipeline.
