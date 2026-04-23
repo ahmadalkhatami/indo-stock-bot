@@ -13,7 +13,8 @@ FEATURE_COLS = [
     'close_zscore_20',
     'usd_idr_return', 'sp500_return',
     'foreign_flow_ratio', 'foreign_trend_7d',
-    'sentiment_score'
+    'sentiment_score',
+    'sector_relative_return'
 ]
 
 
@@ -26,7 +27,22 @@ def add_features_and_labels(df: pd.DataFrame, sentiment_score: float = 0.0) -> p
       - target_binary:    1 if future_return_3d > 0
       - target_strong:    1 if future_return_3d > 0.02
     """
+    df = df.copy()
+    df['sentiment_score'] = sentiment_score
+    df['Date'] = pd.to_datetime(df['Date'])
     df = df.sort_values(by=['Ticker', 'Date']).reset_index(drop=True)
+
+    # ── Sector Rotation logic ────────────────────────────────────────────────
+    if 'Sektor' in df.columns:
+        # Calculate daily return properly for each stock
+        df['return_1d'] = df.groupby('Ticker')['Close'].pct_change()
+        # Calculate sector average return per day
+        df['sector_avg_return'] = df.groupby(['Sektor', 'Date'])['return_1d'].transform('mean')
+        # Outperformance vs peers
+        df['sector_relative_return'] = df['return_1d'] - df['sector_avg_return']
+    else:
+        df['sector_relative_return'] = 0.0
+
     processed = []
 
     for ticker, group in df.groupby('Ticker', sort=False):

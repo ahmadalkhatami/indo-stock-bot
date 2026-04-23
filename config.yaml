@@ -14,6 +14,9 @@ strategy:
   take_profit: 0.06
   stop_loss: 0.03
   max_hold_days: 5
+  # Realistic costs
+  fee_rate: 0.0015    # 0.15% (Typical for Indo brokers)
+  slippage: 0.001     # 0.1% (Market impact buffer)
 
 data:
   period: "5y"

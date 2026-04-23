@@ -134,6 +134,8 @@ def main():
         take_profit=STRAT['take_profit'],
         stop_loss=STRAT['stop_loss'],
         max_hold_days=STRAT['max_hold_days'],
+        fee_rate=STRAT.get('fee_rate', 0.0015),
+        slippage=STRAT.get('slippage', 0.001),
     )
     print_backtest_results(results)
 
