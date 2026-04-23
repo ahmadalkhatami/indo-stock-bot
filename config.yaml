@@ -37,5 +37,5 @@ paths:
 # Telegram Notifications
 telegram:
   enabled: true
-  chat_id: "1569995460"
-  token: "8633863682:AAGXhPc8RSPsmm2sY3xtWedhhDukkuL6vMY" # Integrated from @BotFather
+  chat_id: "YOUR_CHAT_ID" # Set in .env
+  token: "YOUR_BOT_TOKEN" # Set in .env

@@ -155,15 +155,25 @@ def main():
     else:
         logger.warning("No high-confidence signals today.")
 
+from dotenv import load_dotenv
+load_dotenv()
+
+# ... inside main logic:
     # Telegram Notification
     tg_cfg = CONFIG.get('telegram', {})
     if tg_cfg.get('enabled') and not buy_picks.empty:
         from utils.notifications import send_telegram_signal
-        msg = "🚀 *IndoStockBot Signals Found!*\n\n"
-        for _, r in buy_picks.head(5).iterrows():
-            msg += f"• *{r['Ticker']}*\n  Prob: {r['probability']*100:.1f}%\n  Price: Rp {r['Close']:,.0f}\n\n"
-        msg += "Cek dashboard untuk detail lengkap."
-        send_telegram_signal(tg_cfg['token'], tg_cfg['chat_id'], msg)
+        token = os.environ.get('TELEGRAM_BOT_TOKEN')
+        chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+        
+        if token and chat_id:
+            msg = "🚀 *IndoStockBot Signals Found!*\n\n"
+            for _, r in buy_picks.head(5).iterrows():
+                msg += f"• *{r['Ticker']}*\n  Prob: {r['probability']*100:.1f}%\n  Price: Rp {r['Close']:,.0f}\n\n"
+            msg += "Cek dashboard untuk detail lengkap."
+            send_telegram_signal(token, chat_id, msg)
+        else:
+            logger.warning("Telegram credentials missing in .env file.")
 
     save_artifacts(results, predictor)
 
