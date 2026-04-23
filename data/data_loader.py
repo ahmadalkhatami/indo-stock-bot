@@ -55,8 +55,10 @@ def fetch_data(tickers: List[str], period: str = "5y") -> pd.DataFrame:
         macro_merged['Date'] = pd.to_datetime(macro_merged['Date']).dt.tz_localize(None)
         df_stocks = pd.merge(df_stocks, macro_merged, on='Date', how='left')
         
-        # Group by ticker and forward fill missing macro data just in case
-        df_stocks = df_stocks.sort_values(['Ticker', 'Date']).groupby('Ticker', group_keys=False).ffill()
-        df_stocks = df_stocks.bfill() # bfill any initial NaNs
+        # Forward fill missing macro data per ticker (only macro cols to preserve Ticker column)
+        df_stocks = df_stocks.sort_values(['Ticker', 'Date'])
+        macro_cols = [c for c in macro_merged.columns if c != 'Date']
+        df_stocks[macro_cols] = df_stocks.groupby('Ticker', group_keys=False)[macro_cols].ffill()
+        df_stocks[macro_cols] = df_stocks[macro_cols].bfill()
         
     return df_stocks

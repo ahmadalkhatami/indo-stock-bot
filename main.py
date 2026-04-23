@@ -47,7 +47,7 @@ def main():
     
     if not picks.empty:
         top_5 = picks.head(5)
-        print("\n🔥 Top 5 Stocks with Highest Probability (>= 2% return in 3 days) 🔥")
+        print("\n=== Top 5 Stocks with Highest Probability (>= 2% return in 3 days) ===")
         for i, row in top_5.iterrows():
             print(f"{row['Ticker']:<10} | Prob: {row['Probability']*100:>6.2f}% | Last Close: Rp {row['Close']:,.0f}")
             

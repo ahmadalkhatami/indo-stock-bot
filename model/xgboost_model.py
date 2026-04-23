@@ -31,8 +31,9 @@ class StockPredictor:
         ]
 
     def prepare_data(self, df: pd.DataFrame, training: bool = True):
-        # Drop rows with NaN in features
-        df_clean = df.dropna(subset=self.features).copy()
+        df_clean = df.copy()
+        df_clean[self.features] = df_clean[self.features].replace([np.inf, -np.inf], np.nan)
+        df_clean = df_clean.dropna(subset=self.features)
         
         if training:
             # For training, drop rows where Future_Return_3d is NaN (the last 3 days)
