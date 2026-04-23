@@ -12,12 +12,13 @@ FEATURE_COLS = [
     'rsi_14', 'macd_diff', 'bb_width',
     'close_zscore_20',
     'usd_idr_return', 'sp500_return',
+    'foreign_flow_ratio', 'foreign_trend_7d'
 ]
 
 
 def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Generate technical indicators, macro features, and target labels.
+    Generate technical indicators, macro features, foreign flow, and target labels.
 
     Labels:
       - future_return_3d: continuous 3-day forward return
@@ -32,28 +33,38 @@ def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
         close, high, low = g['Close'], g['High'], g['Low']
         open_, volume = g['Open'], g['Volume']
 
+        # Foreign Flow Features
+        if 'F_Net' in g.columns:
+            # Ratio of net foreign flow vs total volume
+            g['foreign_flow_ratio'] = g['F_Net'] / (volume + 1e-9)
+            # 7-day cumulative foreign flow trend
+            g['foreign_trend_7d'] = g['foreign_flow_ratio'].rolling(7).sum()
+        else:
+            g['foreign_flow_ratio'] = 0.0
+            g['foreign_trend_7d'] = 0.0
+
         # Returns
-        g['return_1d'] = close.pct_change(1)
-        g['return_3d'] = close.pct_change(3)
-        g['return_7d'] = close.pct_change(7)
+        g['return_1d'] = close.pct_change(1, fill_method=None)
+        g['return_3d'] = close.pct_change(3, fill_method=None)
+        g['return_7d'] = close.pct_change(7, fill_method=None)
 
         # Rolling volatility of daily returns
         g['volatility_7d'] = g['return_1d'].rolling(7).std()
         g['volatility_14d'] = g['return_1d'].rolling(14).std()
 
         # Intraday range and body
-        g['high_low_range'] = (high - low) / close
-        g['close_open'] = (close - open_) / open_
+        g['high_low_range'] = (high - low) / (close + 1e-9)
+        g['close_open'] = (close - open_) / (open_ + 1e-9)
 
         # Volume features
         vol_ma20 = volume.rolling(20).mean()
         vol_ma5 = volume.rolling(5).mean()
-        g['volume_spike'] = volume / vol_ma20
-        g['volume_trend'] = vol_ma5 / vol_ma20
+        g['volume_spike'] = volume / (vol_ma20 + 1e-9)
+        g['volume_trend'] = vol_ma5 / (vol_ma20 + 1e-9)
 
         # Momentum & trend
-        g['momentum_10'] = close / close.shift(10)
-        g['trend_strength'] = close / close.rolling(50).mean()
+        g['momentum_10'] = close / (close.shift(10) + 1e-9)
+        g['trend_strength'] = close / (close.rolling(50).mean() + 1e-9)
 
         # Technical indicators
         g['rsi_14'] = ta.momentum.RSIIndicator(close, window=14).rsi()
@@ -65,11 +76,11 @@ def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
         # Z-score of close
         sma20 = close.rolling(20).mean()
         std20 = close.rolling(20).std()
-        g['close_zscore_20'] = (close - sma20) / std20
+        g['close_zscore_20'] = (close - sma20) / (std20 + 1e-9)
 
         # Macro returns
-        g['usd_idr_return'] = g['USD_IDR'].pct_change() if 'USD_IDR' in g.columns else 0.0
-        g['sp500_return'] = g['SP500'].pct_change() if 'SP500' in g.columns else 0.0
+        g['usd_idr_return'] = g['USD_IDR'].pct_change(fill_method=None) if 'USD_IDR' in g.columns else 0.0
+        g['sp500_return'] = g['SP500'].pct_change(fill_method=None) if 'SP500' in g.columns else 0.0
 
         # Targets
         future_return = (close.shift(-3) - close) / close

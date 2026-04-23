@@ -4,14 +4,58 @@ import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
+import subprocess
+import sys
+import time
 
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACT_DIR = os.path.join(ROOT, 'data', 'artifacts')
 PICKS_FILE   = os.path.join(ROOT, 'data', 'latest_picks.csv')
 
-st.set_page_config(page_title="Indo Stock Prediction", layout="wide")
+st.set_page_config(page_title="Indo Stock Prediction", layout="wide", initial_sidebar_state="expanded")
 
-
+# --- CUSTOM CSS PREMIUM DESIGN ---
+st.markdown("""
+<style>
+    /* Global Background and Fonts */
+    .stApp {
+        background-color: #0d1117;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Metrics Box Customization (Glassmorphism & Gradients) */
+    [data-testid="stMetricValue"] {
+        font-size: 28px !important;
+        font-weight: 800 !important;
+        color: #58a6ff !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #8b949e !important;
+    }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #161b22;
+        border-right: 1px solid #30363d;
+    }
+    
+    /* Headings and Titles */
+    h1, h2, h3 {
+        color: #c9d1d9 !important;
+        margin-bottom: 20px;
+    }
+    
+    /* Dataframes and Tables */
+    .stDataFrame {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #30363d;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    }
+</style>
+""", unsafe_allow_html=True)
 @st.cache_data
 def load_artifacts():
     paths = {
@@ -67,6 +111,63 @@ if page == "Overview":
         st.stop()
 
     m = arts['metrics'].iloc[0].to_dict()
+
+    # ── SIDEBAR CONTROL ─────────────────────────────────────────────
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/1693/1693746.png", width=80)
+        st.title("Control Panel")
+        
+        # --- SCHEDULER SECTION ---
+        st.subheader("⏰ Auto Scheduler")
+        sched_time = st.text_input("Run Time (WIB)", value="16:30", help="Format HH:MM")
+        is_active = st.toggle("Enable Daily Scheduler", value=True)
+        
+        # Simpan ke file untuk dibaca oleh desktop_app.py
+        import json
+        config_path = os.path.join(ROOT, "data", "scheduler_config.json")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            json.dump({"time": sched_time, "active": is_active}, f)
+        
+        if is_active:
+            st.success(f"Scheduler active for {sched_time}")
+            
+        st.divider()
+
+        # --- FOREIGN FLOW INSIGHTS ---
+        st.subheader("🌐 Foreign Intelligence")
+        try:
+            # Load foreign flow data if exists in latest df
+            if 'df' in globals() and df is not None and 'F_Net' in df.columns:
+                today_ff = df.groupby('Ticker')['F_Net'].last().sort_values(ascending=False).head(5)
+                st.write("Top 5 Foreign Net Buy:")
+                for tick, val in today_ff.items():
+                    st.caption(f"**{tick.split('.')[0]}**: {val:,.0f} shares")
+        except:
+            st.caption("Data incoming...")
+
+        st.divider()
+
+        # --- MANUAL RUN ---
+        if st.button("🚀 RUN AI PREDICTION", use_container_width=True):
+            with st.status("AI is calculating...", expanded=True) as status:
+                st.write("Fetching market data...")
+                env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONHOME")}
+                process = subprocess.Popen(
+                    [sys.executable.replace("dashboard/app.py", "venv/bin/python3"), "main.py"],
+                    cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+                )
+                for line in process.stdout:
+                    st.text(line.strip())
+                process.wait()
+                status.update(label="AI Analysis Complete!", state="complete", expanded=False)
+                st.success("Data updated successfully!")
+                time.sleep(2)
+                st.rerun()
+
+        st.divider()
+        st.caption("v1.2 Premium Edition")
 
     # ── Returns & Drawdown ──────────────────────────────────────────────────
     st.subheader("Performance")

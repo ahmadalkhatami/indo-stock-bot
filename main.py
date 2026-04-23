@@ -18,7 +18,7 @@ DB_FILE = os.path.join(DATA_DIR, 'predictions.db')
 INITIAL_CAPITAL       = 100_000_000.0
 
 # Entry filters
-CONFIDENCE_THRESHOLD  = 0.7     # prob threshold for signals
+CONFIDENCE_THRESHOLD  = 0.55    # prob threshold for signals
 MOMENTUM_MIN          = 1.02    # momentum_10 > 1.02 (stock above 10-day ago price by 2%)
 VOLUME_SPIKE_MIN      = 1.2     # volume / 20-day avg > 1.2
 TOP_PCT               = 0.05    # top 5% by probability on each day

@@ -1,5 +1,11 @@
 import time
-import requests
+import time
+try:
+    from curl_cffi import requests
+    IMPERSONATE = True
+except ImportError:
+    import requests
+    IMPERSONATE = False
 import yfinance as yf
 import pandas as pd
 from typing import List
@@ -27,34 +33,111 @@ _FALLBACK_TICKERS = [
 
 def fetch_idx_tickers(index: str = "IDX80") -> List[str]:
     """
-    Fetch IDX80 constituent tickers from Bursa Efek Indonesia.
-    Returns Yahoo Finance-compatible symbols (e.g. 'BBCA.JK').
-    Falls back to a hardcoded IDX80 list if the API is unreachable.
+    Fetch LIVE tickers from Wikipedia (100% Stable & Anti-Block).
     """
-    url = "https://www.idx.co.id/umbraco/Surface/StockData/GetSecuritiesData"
-    params = {"start": 0, "length": 100, "indexCode": index}
+    import json
+    import os
+    import re
+    
+    cache_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ticker_cache.json")
+    
+    # Wikipedia is very stable for LQ45
+    url = "https://id.wikipedia.org/wiki/LQ45"
+    
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/json",
-        "Referer": "https://www.idx.co.id/id/data-pasar/data-saham/daftar-saham/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
     }
-    try:
-        resp = requests.get(url, params=params, headers=headers, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-        tickers = [
-            f"{item['StockCode']}.JK"
-            for item in data.get('data', [])
-            if item.get('StockCode')
-        ]
-        if tickers:
-            print(f"Fetched {len(tickers)} {index} tickers from IDX.")
-            return tickers
-        raise ValueError("Empty ticker list from IDX API.")
-    except Exception as e:
-        print(f"IDX API unavailable ({e}). Using fallback IDX80 list ({len(_FALLBACK_TICKERS)} tickers).")
-        return list(dict.fromkeys(_FALLBACK_TICKERS))  # deduplicate, preserve order
 
+    try:
+        resp = requests.get(url, headers=headers, timeout=20)
+        resp.raise_for_status()
+        raw_html = resp.text
+        
+        # Mencari ticker 4 huruf di dalam tabel (Pola: ADRO, BBCA, dsb)
+        # Wikipedia biasanya menggunakan tag <td><a ...>BBCA</a></td>
+        symbols = re.findall(r'<td>([A-Z]{4})</td>', raw_html)
+        
+        # Jika tidak ketemu, cari di dalam link <a>BBCA</a>
+        if not symbols:
+            symbols = re.findall(r'title="[^"]+">([A-Z]{4})</a>', raw_html)
+
+        full_tickers = [f"{s}.JK" for s in symbols if len(s) == 4]
+        
+        # Unique list
+        full_tickers = list(dict.fromkeys(full_tickers))
+
+        if len(full_tickers) >= 40: # LQ45 harus ada minimal 45 (atau sekitarnya)
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+            with open(cache_file, "w") as f:
+                json.dump(full_tickers, f)
+            print(f"Success! Fetched {len(full_tickers)} LIVE tickers from Wikipedia.")
+            return full_tickers
+            
+    except Exception as e:
+        print(f"Wikipedia fetch failed ({e}). Checking local cache...")
+        
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r") as f:
+                cached_tickers = json.load(f)
+            return cached_tickers
+        except:
+            pass
+
+    return list(dict.fromkeys(_FALLBACK_TICKERS))
+
+
+def fetch_foreign_flow() -> pd.DataFrame:
+    """
+    Fetch daily net foreign transaction data from Kontan Data Center.
+    Returns a DataFrame with columns: ['Ticker', 'F_Net']
+    """
+    print("Fetching Foreign Flow data from Kontan...")
+    url = "https://pusatdata.kontan.co.id/market/rekap_data/saham/daily/"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+    }
+    
+    try:
+        if IMPERSONATE:
+            resp = requests.get(url, headers=headers, impersonate="chrome110", timeout=20)
+        else:
+            resp = requests.get(url, headers=headers, timeout=20)
+        
+        resp.raise_for_status()
+        
+        # Parse all tables
+        tables = pd.read_html(resp.text)
+        
+        # Cari tabel yang memiliki kolom cukup banyak (biasanya > 11 kolom)
+        df_ff = None
+        for t in tables:
+            if t.shape[1] >= 11:
+                df_ff = t
+                break
+        
+        if df_ff is None:
+            return pd.DataFrame()
+        
+        # Berdasarkan inspeksi: Indeks 1: Kode, Indeks 9: Buy, Indeks 10: Sell
+        # Gunakan iloc untuk keamanan jika nama kolom berubah
+        df_ff = df_ff.iloc[:, [1, 9, 10]] 
+        df_ff.columns = ['Ticker', 'F_Buy', 'F_Sell']
+        
+        # Bersihkan data
+        df_ff['Ticker'] = df_ff['Ticker'].astype(str).str.strip().str.upper() + ".JK"
+        # Hilangkan titik (.) ribuan jika ada agar bisa dikonversi ke angka
+        df_ff['F_Buy'] = df_ff['F_Buy'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+        df_ff['F_Sell'] = df_ff['F_Sell'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+        
+        df_ff['F_Net'] = pd.to_numeric(df_ff['F_Buy'], errors='coerce').fillna(0) - \
+                         pd.to_numeric(df_ff['F_Sell'], errors='coerce').fillna(0)
+        
+        print(f"  Successfully fetched foreign flow for {len(df_ff)} stocks.")
+        return df_ff[['Ticker', 'F_Net']]
+    except Exception as e:
+        print(f"  Failed to fetch foreign flow: {e}")
+        return pd.DataFrame()
 
 def fetch_data(
     tickers: List[str],
@@ -152,6 +235,13 @@ def fetch_data(
         macro_cols = [c for c in macro_merged.columns if c != 'Date']
         df_stocks[macro_cols] = df_stocks.groupby('Ticker', group_keys=False)[macro_cols].ffill()
         df_stocks[macro_cols] = df_stocks[macro_cols].bfill()
+
+    # ── Foreign Flow ──────────────────────────────────────────────────────────
+    df_ff = fetch_foreign_flow()
+    if not df_ff.empty:
+        df_stocks = pd.merge(df_stocks, df_ff, on='Ticker', how='left')
+        df_stocks['F_Net'] = df_stocks['F_Net'].fillna(0)
+        print("  Foreign Flow integrated into datasets.")
 
     return df_stocks
 

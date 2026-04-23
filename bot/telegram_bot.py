@@ -4,13 +4,13 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 PICKS_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'latest_picks.csv')
-THRESHOLD = 0.6
+THRESHOLD = 0.55
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Welcome to the Indo Stock Predictor Bot.\n"
-        "Use /top to see today's high-confidence picks (probability >= 60%)."
+        "Use /top to see today's high-confidence picks (probability >= 55%)."
     )
 
 
@@ -33,7 +33,7 @@ async def top_picks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No high-confidence signals today.")
         return
 
-    lines = ["*Top Picks Today* (probability >= 60%):\n"]
+    lines = ["*Top Picks Today* (probability >= 55%):\n"]
     for _, row in df.head(5).iterrows():
         prob = float(row.get('probability', 0)) * 100
         close = float(row.get('Close', 0))
@@ -47,3 +47,11 @@ def run_bot(token: str):
     app.add_handler(CommandHandler("top", top_picks))
     print("Telegram bot started. Press Ctrl+C to stop.")
     app.run_polling()
+
+if __name__ == "__main__":
+    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    if bot_token:
+        print("Menjalankan Bot Standby 24/7...")
+        run_bot(bot_token)
+    else:
+        print("Error: Mohon export TELEGRAM_BOT_TOKEN terlebih dahulu!")
