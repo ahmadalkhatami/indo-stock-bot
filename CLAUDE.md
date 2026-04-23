@@ -4,69 +4,73 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Does
 
-A quantitative trading pipeline for Indonesian stocks (IDX). It fetches 5 years of OHLCV data for 30 tickers, engineers 21 technical/macro features, trains an XGBoost classifier to predict whether a stock will gain ≥2% within 3 trading days, backtests a daily top-3 portfolio strategy, and exposes results via a Telegram bot and Streamlit dashboard.
+A production-grade quantitative trading pipeline for Indonesian stocks (IDX). It fetches 5 years of OHLCV + macro data for 30 tickers, engineers 17 technical/price-action/macro features, trains an XGBoost classifier to predict whether a stock will rise in the next 3 days, runs a realistic backtest (with fees, slippage, position sizing, and a max-concurrent cap) benchmarked against IHSG, and exposes results via a 5-page Streamlit dashboard and a Telegram bot.
 
 ## Common Commands
 
 ```bash
-# Run the full pipeline (fetch data → train → backtest → predict → optionally start bot)
+# Run the full pipeline (fetch → features → train → backtest → predict → save artifacts)
 python main.py
 
-# Run Telegram bot (set token first)
-export TELEGRAM_BOT_TOKEN="your_bot_token"
-python main.py
+# Launch the interactive Streamlit dashboard
+streamlit run dashboard/app.py
 
-# Launch Streamlit dashboard
-streamlit run dashboard.py
+# Run the Telegram bot (after main.py has generated latest_picks.csv)
+export TELEGRAM_BOT_TOKEN="your_token"
+python main.py
 ```
 
 ## Architecture
 
-### Data Flow
+### Pipeline Flow
 
 ```
 main.py
-  → data_loader.fetch_data()          # yfinance: 30 .JK tickers + USD/IDR + S&P500
-  → feature_engineering.add_features_and_labels()  # 21 features + binary label
-  → StockPredictor.train_and_evaluate()  # XGBoost + TimeSeriesSplit(n_splits=5)
-  → run_backtest()                    # Simulated top-3 daily strategy
-  → StockPredictor.predict_today()   # Writes data/latest_picks.csv + data/predictions.db
-  → run_bot() [optional]             # Async Telegram bot
+  → data/data_loader.py       # yfinance: 30 .JK tickers + USD/IDR + S&P 500 + IHSG benchmark
+  → features/feature_engineering.py  # 17 features + binary/strong targets
+  → models/xgboost_model.py   # XGBoost + TimeSeriesSplit(5) → OOF predictions
+  → backtest/backtester.py    # Realistic simulation with fees/slippage/sizing
+  → predict_today + save to data/latest_picks.csv + data/predictions.db
+  → save artifacts → data/artifacts/  (consumed by dashboard)
 ```
 
 ### Modules
 
-| Module | File | Responsibility |
-|---|---|---|
-| Data | `data/data_loader.py` | Yahoo Finance ingestion, macro data, timezone normalization |
-| Features | `features/feature_engineering.py` | RSI, MACD, Bollinger Bands, SMA, rolling stats, returns, macro returns |
-| Model | `model/xgboost_model.py` | XGBClassifier training, joblib serialization to `model/xgboost_model.pkl` |
-| Backtest | `backtest/backtester.py` | 3-tranche daily portfolio sim, 0.4% round-trip fees, drawdown |
-| Bot | `bot/telegram_bot.py` | Async handlers for `/start` and `/top picks`, reads `latest_picks.csv` |
-| Dashboard | `dashboard.py` | Streamlit UI reading `predictions.db` for history |
+| Path | Responsibility |
+|---|---|
+| `data/data_loader.py` | yfinance ingestion, macro merge, IHSG benchmark fetch |
+| `features/feature_engineering.py` | returns, volatility, volume, momentum, RSI/MACD/BB, macro returns, two targets |
+| `models/xgboost_model.py` | `StockPredictor` class; OOF predictions via TimeSeriesSplit; ROC points + feature importance |
+| `backtest/backtester.py` | Daily-rebalance sim: entry/exit fees 0.15%, slippage 0.1%, max 3 new/day, max 9 concurrent, 3-day hold, IHSG comparison |
+| `dashboard/app.py` | 5-page Streamlit UI: Overview, Equity Curve, Top Picks, Backtest Analysis, Model Performance |
+| `bot/telegram_bot.py` | `/start`, `/top` (returns "No high-confidence signals today" if nothing >= 60%) |
 
 ## Key Invariants to Preserve
 
-**No data leakage:** The label is `Future_Return_3d = (Close.shift(-3) / Close) - 1`. Training data drops the last 3 rows per ticker so no future prices appear in features.
+**No data leakage.** Target `future_return_3d = (close.shift(-3) - close) / close` uses future prices. Training data drops rows with NaN targets. Backtest uses **out-of-fold** predictions from `TimeSeriesSplit` — never in-sample.
 
-**Temporal ordering:** All cross-validation uses `TimeSeriesSplit` — never shuffle time-series data.
+**Confidence threshold.** Every prediction surface (`predict_today`, backtest signal filter, Telegram bot) filters at `probability >= 0.6`. If nothing passes, return "no signals" — do not lower the threshold.
 
-**Model path consistency:** `model/xgboost_model.pkl` is the single artifact referenced by both backtester and `predict_today()`. Don't move or rename it without updating all references.
+**Realistic costs.** Backtester applies `fee_rate=0.0015` on both buy and sell, and `slippage=0.001` (buy at close×1.001, sell at close×0.999). Do not silently remove these.
 
-## Environment & Dependencies
+**Position sizing.** Each new position is sized at `current_equity / max_concurrent` (default 9), not all-in. Cash stays in cash when no signals meet the threshold.
 
-No `.env` file — configure via environment variables:
-- `TELEGRAM_BOT_TOKEN` — required only to start the Telegram bot
+## Configuration
 
-Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+Defaults in `main.py`:
+- `CONFIDENCE_THRESHOLD = 0.6`
+- `INITIAL_CAPITAL = 100_000_000` (IDR)
+- Target = `target_binary` (future_return > 0). Alternative: `target_strong` (> 2%).
 
-Key packages: `yfinance`, `ta`, `xgboost`, `scikit-learn`, `joblib`, `python-telegram-bot`, `streamlit`, `sqlalchemy`
+Env vars:
+- `TELEGRAM_BOT_TOKEN` — required only to start the bot
 
 ## Outputs
 
-- `data/latest_picks.csv` — today's top 5 predictions (overwritten each run)
-- `data/predictions.db` — SQLite historical log of all predictions
-- `model/xgboost_model.pkl` — trained model artifact (overwritten each run)
+All regenerated by running `python main.py` (gitignored):
+- `data/latest_picks.csv` — today's picks with `signal` column (`BUY` / `NONE`)
+- `data/predictions.db` — SQLite historical log
+- `data/artifacts/` — CSVs consumed by the dashboard:
+  - `equity_curve.csv`, `trades.csv`, `benchmark_curve.csv`
+  - `metrics.csv`, `roc.csv`, `feature_importances.csv`
+- `models/xgboost_model.pkl` — joblib bundle (model + features + threshold + metrics)
