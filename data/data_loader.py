@@ -34,11 +34,23 @@ def fetch_ticker_metadata(index: str = "LQ45") -> pd.DataFrame:
     """
     Fetch LIVE tickers AND Sectors from Wikipedia (LQ45).
     """
+    import os
     import pandas as pd
+    import requests
+    import urllib3
+    from io import StringIO
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
     url = "https://id.wikipedia.org/wiki/LQ45"
     headers = {"User-Agent": "Mozilla/5.0"}
+
     try:
-        tables = pd.read_html(url)
+        # Use requests with verify=False to bypass macOS SSL certificate issues
+        resp = requests.get(url, headers=headers, verify=False, timeout=15)
+        resp.raise_for_status()
+        
+        # Use StringIO to avoid FutureWarning in pd.read_html
+        tables = pd.read_html(StringIO(resp.text))
         df_wiki = None
         for t in tables:
             if 'Kode' in t.columns:
@@ -56,20 +68,50 @@ def fetch_ticker_metadata(index: str = "LQ45") -> pd.DataFrame:
                 df_wiki['Ticker'] = df_wiki['Ticker'].str.strip().str.upper() + ".JK"
                 return df_wiki
             else:
+                # Use our comprehensive map even if list is from Wikipedia
                 df_wiki = df_wiki[['Kode']].copy()
                 df_wiki = df_wiki.rename(columns={'Kode': 'Ticker'})
                 df_wiki['Ticker'] = df_wiki['Ticker'].str.strip().str.upper() + ".JK"
-                df_wiki['Sektor'] = 'Lainnya'
+                
+                # Define fallback map here to ensure visibility
+                f_map = {
+                    'BBCA.JK': 'Finance', 'BBRI.JK': 'Finance', 'BMRI.JK': 'Finance', 'BBNI.JK': 'Finance',
+                    'ADRO.JK': 'Energy', 'PTBA.JK': 'Energy', 'ITMG.JK': 'Energy', 'MEDC.JK': 'Energy',
+                    'ANTM.JK': 'Basic Materials', 'MDKA.JK': 'Basic Materials', 'TLKM.JK': 'Infrastructure',
+                    'ASII.JK': 'Industrials', 'UNVR.JK': 'Consumer Non-Cyclical', 'GOTO.JK': 'Technology'
+                }
+                df_wiki['Sektor'] = df_wiki['Ticker'].map(f_map).fillna('Lainnya')
                 return df_wiki
     except Exception as e:
         print(f"Wikipedia sector fetch failed ({e}). Use fallback.")
+    # Comprehensive mapping for IDX80/LQ45
     fallback_map = {
+        # Finance
         'BBCA.JK': 'Finance', 'BBRI.JK': 'Finance', 'BMRI.JK': 'Finance', 'BBNI.JK': 'Finance',
-        'TLKM.JK': 'Communication', 'ASII.JK': 'Industrial', 'UNVR.JK': 'Consumer', 
-        'ADRO.JK': 'Energy', 'PTBA.JK': 'Energy', 'ITMG.JK': 'Energy', 
-        'ANTM.JK': 'Basic Materials', 'MDKA.JK': 'Basic Materials'
+        'BBTN.JK': 'Finance', 'ARTO.JK': 'Finance', 'BRIS.JK': 'Finance', 'PNBN.JK': 'Finance',
+        # Energy
+        'ADRO.JK': 'Energy', 'PTBA.JK': 'Energy', 'ITMG.JK': 'Energy', 'MEDC.JK': 'Energy',
+        'HRUM.JK': 'Energy', 'PGEO.JK': 'Energy', 'AKRA.JK': 'Energy', 'BUMI.JK': 'Energy',
+        # Basic Materials
+        'ANTM.JK': 'Basic Materials', 'MDKA.JK': 'Basic Materials', 'INCO.JK': 'Basic Materials',
+        'TINS.JK': 'Basic Materials', 'BRPT.JK': 'Basic Materials', 'TPIA.JK': 'Basic Materials',
+        'INKP.JK': 'Basic Materials', 'TKIM.JK': 'Basic Materials', 'SMGR.JK': 'Basic Materials',
+        # Consumer Non-Cyclical
+        'UNVR.JK': 'Consumer Non-Cyclical', 'ICBP.JK': 'Consumer Non-Cyclical', 'INDF.JK': 'Consumer Non-Cyclical',
+        'AMRT.JK': 'Consumer Non-Cyclical', 'HMSP.JK': 'Consumer Non-Cyclical', 'GGRM.JK': 'Consumer Non-Cyclical',
+        'CPIN.JK': 'Consumer Non-Cyclical', 'MYOR.JK': 'Consumer Non-Cyclical',
+        # Consumer Cyclical
+        'ACES.JK': 'Consumer Cyclical', 'MAPI.JK': 'Consumer Cyclical', 'ERAA.JK': 'Consumer Cyclical',
+        # Infrastructure / Tech
+        'TLKM.JK': 'Infrastructure', 'ISAT.JK': 'Infrastructure', 'EXCL.JK': 'Infrastructure',
+        'TOWR.JK': 'Infrastructure', 'JSMR.JK': 'Infrastructure', 'GOTO.JK': 'Technology',
+        'BUKA.JK': 'Technology', 'EMTK.JK': 'Technology',
+        # Industrials
+        'ASII.JK': 'Industrials', 'UNTR.JK': 'Industrials', 'PTPP.JK': 'Industrials', 'WIKA.JK': 'Industrials'
     }
-    data = [{'Ticker': t, 'Sektor': fallback_map.get(t, 'Lainnya')} for t in _FALLBACK_TICKERS]
+    data = []
+    for t in _FALLBACK_TICKERS:
+        data.append({'Ticker': t, 'Sektor': fallback_map.get(t, 'Lainnya')})
     return pd.DataFrame(data)
 
 def fetch_idx_tickers(index: str = "IDX80") -> List[str]:
