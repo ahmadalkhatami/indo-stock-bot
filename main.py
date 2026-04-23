@@ -23,8 +23,23 @@ ARTIFACT_DIR = os.path.join(DATA_DIR, 'artifacts')
 PICKS_FILE = os.path.join(DATA_DIR, 'latest_picks.csv')
 DB_FILE = os.path.join(DATA_DIR, 'predictions.db')
 
-CONFIDENCE_THRESHOLD = 0.6
-INITIAL_CAPITAL = 100_000_000.0
+# ── Strategy parameters ────────────────────────────────────────────────────────
+INITIAL_CAPITAL       = 100_000_000.0
+
+# Entry filters
+CONFIDENCE_THRESHOLD  = 0.7     # prob threshold for signals
+MOMENTUM_MIN          = 1.02    # momentum_10 > 1.02 (stock above 10-day ago price by 2%)
+VOLUME_SPIKE_MIN      = 1.2     # volume / 20-day avg > 1.2
+TOP_PCT               = 0.05    # top 5% by probability on each day
+
+# Portfolio
+MAX_POSITIONS         = 2       # max concurrent positions
+POSITION_PCT          = 0.5     # 50% of current equity per trade
+
+# Exit rules
+TAKE_PROFIT           = 0.03    # +3% TP
+STOP_LOSS             = 0.015   # -1.5% SL
+MAX_HOLD_DAYS         = 5       # force exit after 5 trading days
 
 
 def save_artifacts(results: dict, predictor: StockPredictor) -> None:
@@ -43,16 +58,23 @@ def save_artifacts(results: dict, predictor: StockPredictor) -> None:
         )
 
     metrics_row = {
-        'total_return': results['total_return'],
-        'cagr': results['cagr'],
-        'win_rate': results['win_rate'],
-        'max_drawdown': results['max_drawdown'],
-        'sharpe_ratio': results['sharpe_ratio'],
-        'num_trades': results['num_trades'],
+        'total_return':           results['total_return'],
+        'cagr':                   results['cagr'],
+        'win_rate':               results['win_rate'],
+        'max_drawdown':           results['max_drawdown'],
+        'sharpe_ratio':           results['sharpe_ratio'],
+        'avg_exposure':           results['avg_exposure'],
+        'num_trades':             results['num_trades'],
+        'avg_gain':               results['avg_gain'],
+        'avg_loss':               results['avg_loss'],
+        'win_loss_ratio':         results['win_loss_ratio'],
+        'profit_factor':          results['profit_factor'],
+        'gross_profit':           results['gross_profit'],
+        'gross_loss':             results['gross_loss'],
         'benchmark_total_return': results['benchmark_total_return'],
-        'roc_auc': predictor.metrics.get('roc_auc'),
-        'precision': predictor.metrics.get('precision'),
-        'recall': predictor.metrics.get('recall'),
+        'roc_auc':                predictor.metrics.get('roc_auc'),
+        'precision':              predictor.metrics.get('precision'),
+        'recall':                 predictor.metrics.get('recall'),
     }
     pd.DataFrame([metrics_row]).to_csv(
         os.path.join(ARTIFACT_DIR, 'metrics.csv'), index=False
@@ -88,13 +110,21 @@ def main():
     )
     predictor.train_and_evaluate(df_features)
 
-    print("\n[4/5] Running Realistic Backtest...")
+    print("\n[4/5] Running Aggressive Backtest...")
     results = run_backtest(
         df_features,
         predictor.oof_predictions,
         benchmark_df=benchmark_df,
         initial_capital=INITIAL_CAPITAL,
         confidence_threshold=CONFIDENCE_THRESHOLD,
+        momentum_min=MOMENTUM_MIN,
+        volume_spike_min=VOLUME_SPIKE_MIN,
+        top_pct=TOP_PCT,
+        max_positions=MAX_POSITIONS,
+        position_pct=POSITION_PCT,
+        take_profit=TAKE_PROFIT,
+        stop_loss=STOP_LOSS,
+        max_hold_days=MAX_HOLD_DAYS,
     )
     print_backtest_results(results)
 
