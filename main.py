@@ -37,8 +37,8 @@ MAX_POSITIONS         = 2       # max concurrent positions
 POSITION_PCT          = 0.5     # 50% of current equity per trade
 
 # Exit rules
-TAKE_PROFIT           = 0.03    # +3% TP
-STOP_LOSS             = 0.015   # -1.5% SL
+TAKE_PROFIT           = 0.06    # +6% TP
+STOP_LOSS             = 0.03    # -3% SL
 MAX_HOLD_DAYS         = 5       # force exit after 5 trading days
 
 
