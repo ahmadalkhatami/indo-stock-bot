@@ -2,20 +2,11 @@ import os
 import sqlite3
 import pandas as pd
 
-from data.data_loader import fetch_data, fetch_benchmark
+from data.data_loader import fetch_data, fetch_benchmark, fetch_idx_tickers
 from features.feature_engineering import add_features_and_labels
 from models.xgboost_model import StockPredictor
 from backtest.backtester import run_backtest, print_backtest_results
 from bot.telegram_bot import run_bot
-
-TICKERS = [
-    'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'BBNI.JK', 'TLKM.JK',
-    'ASII.JK', 'UNVR.JK', 'ICBP.JK', 'INDF.JK', 'GOTO.JK',
-    'AMRT.JK', 'CPIN.JK', 'KLBF.JK', 'PGAS.JK', 'PTBA.JK',
-    'ADRO.JK', 'UNTR.JK', 'ITMG.JK', 'ANTM.JK', 'MDKA.JK',
-    'INKP.JK', 'TKIM.JK', 'BRPT.JK', 'TPIA.JK', 'SMGR.JK',
-    'INTP.JK', 'AKRA.JK', 'MEDC.JK', 'HRUM.JK', 'ARTO.JK',
-]
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, 'data')
@@ -95,7 +86,8 @@ def main():
     print("=== Indonesian Stock Market Prediction System ===")
 
     print("\n[1/5] Fetching Data...")
-    df_raw = fetch_data(TICKERS, period="5y")
+    tickers = fetch_idx_tickers()
+    df_raw = fetch_data(tickers, period="5y")
     if df_raw.empty:
         print("Failed to fetch data. Exiting.")
         return
