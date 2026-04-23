@@ -155,15 +155,15 @@ def main():
     else:
         logger.warning("No high-confidence signals today.")
 
-    # WhatsApp Notification
-    ws_cfg = CONFIG.get('whatsapp', {})
-    if ws_cfg.get('enabled') and not buy_picks.empty:
-        from utils.notifications import send_whatsapp_signal
+    # Telegram Notification
+    tg_cfg = CONFIG.get('telegram', {})
+    if tg_cfg.get('enabled') and not buy_picks.empty:
+        from utils.notifications import send_telegram_signal
         msg = "🚀 *IndoStockBot Signals Found!*\n\n"
         for _, r in buy_picks.head(5).iterrows():
             msg += f"• *{r['Ticker']}*\n  Prob: {r['probability']*100:.1f}%\n  Price: Rp {r['Close']:,.0f}\n\n"
         msg += "Cek dashboard untuk detail lengkap."
-        send_whatsapp_signal(ws_cfg['phone'], ws_cfg['apikey'], msg)
+        send_telegram_signal(tg_cfg['token'], tg_cfg['chat_id'], msg)
 
     save_artifacts(results, predictor)
 

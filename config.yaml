@@ -34,8 +34,8 @@ paths:
   picks_file: "data/latest_picks.csv"
   log_file: "app_error.log"
 
-# WhatsApp Notifications (via CallMeBot)
-whatsapp:
+# Telegram Notifications
+telegram:
   enabled: true
-  phone: "085718463908" # Your WhatsApp number
-  apikey: "YOUR_API_KEY_HERE" # Put the key you got from CallMeBot here
+  chat_id: "1569995460"
+  token: "8633863682:AAGXhPc8RSPsmm2sY3xtWedhhDukkuL6vMY" # Integrated from @BotFather

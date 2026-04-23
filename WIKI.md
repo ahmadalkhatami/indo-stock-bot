@@ -83,12 +83,13 @@ Jalankan file `Launch IndoStockBot.command`.
 - **Unit Testing**: Jalankan `pytest tests/` untuk memverifikasi logika fitur.
 - **Logging**: Semua log teknis tercatat di `logs/bot_YYYYMMDD.log`.
 
-### 📱 Notifikasi WhatsApp
-Bot sekarang mendukung pengiriman sinyal langsung ke WhatsApp via CallMeBot.
-1.  **Dapatkan API Key**: Kirim pesan `I allow callmebot to send me messages` ke nomor `+34 624 54 30 18` di WhatsApp.
-2.  **Konfigurasi**: Buka [config.yaml](file:///Users/ahmadalkhatami/Documents/Stock-Bot/indo-stock-bot/config.yaml).
-3.  **Input Data**: Masukkan nomor HP (format 08...) dan API Key yang kamu dapatkan di bagian `whatsapp`.
-4.  **Aktifkan**: Set `enabled: true`.
+### 📱 Notifikasi Telegram
+Bot sekarang mendukung pengiriman sinyal langsung ke Telegram (Jauh lebih stabil & instan).
+1.  **Dapatkan Bot Token**: Buka Telegram, cari `@BotFather`, kirim `/newbot`, ikuti langkahnya sampai dapat Token.
+2.  **Dapatkan Chat ID**: Cari `@userinfobot`, klik klik start untuk melihat ID kamu.
+3.  **Konfigurasi**: Buka [config.yaml](file:///Users/ahmadalkhatami/Documents/Stock-Bot/indo-stock-bot/config.yaml).
+4.  **Input Data**: Masukkan `chat_id` dan `token` yang kamu dapatkan di bagian `telegram`.
+5.  **Aktifkan**: Set `enabled: true`.
 
 ---
 *Created and Maintained by AI Professional Upgrade Service.*
