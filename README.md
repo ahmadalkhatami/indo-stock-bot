@@ -1,35 +1,47 @@
 # 🚀 IndoStockBot v2.0 - Indonesian Stock AI Prediction System
 
-IndoStockBot adalah sistem prediksi pasar saham Indonesia (BEI/IDX) berbasis AI yang dirancang khusus untuk trader profesional dan investor ritel. Menggunakan algoritma Machine Learning XGBoost untuk menganalisis puluhan indikator teknikal, sentimen global, dan arus kas asing secara real-time.
+IndoStockBot adalah sistem prediksi pasar saham Indonesia (BEI/IDX) berbasis AI yang dirancang khusus untuk trader profesional dan investor ritel. Menggunakan algoritma Machine Learning XGBoost untuk menganalisis puluhan indikator teknikal, sentimen berita, dan arus kas asing secara real-time.
 
 ## ✨ Fitur Utama
-- **AI Prediction Engine**: Menggunakan XGBoost dengan hyperparameter tuning otomatis (Optuna).
-- **Anti-Block Data Loader**: Mengambil daftar saham (LQ45/IDX80) dari Wikipedia untuk stabilitas 100%.
+- **AI Prediction Engine**: XGBoost dengan hyperparameter tuning otomatis via Optuna.
+- **Sentiment Analysis**: Scraping headline berita terbaru dari CNBC Indonesia untuk analisis sentimen pasar.
+- **Strategic Configuration**: Pengaturan parameter strategi (TP/SL, Capital) terpusat di `config.yaml`.
 - **Foreign Flow Intelligence**: Integrasi data arus kas asing (Net Foreign) dari Kontan Data Center.
-- **Global Macro Analysis**: Memantau Kurs USD/IDR dan S&P 500 untuk akurasi prediksi makro.
-- **Native macOS Desktop Interface**: Jendela aplikasi elegan berbasis WebView khusus untuk pengguna Mac.
-- **Auto Scheduler**: Eksekusi prediksi otomatis setiap hari pada jam penutupan bursa.
-- **Telegram Notifications**: Mengirimkan sinyal BUY/SELL langsung ke ponsel Anda.
+- **Structured Logging**: Sistem pencatatan aktivitas bot yang detail di folder `logs/`.
+- **Premium Dashboard**: Antarmuka berbasis Streamlit dengan desain Glassmorphism dan monitoring log real-time.
+- **Telegram Notifications**: Notifikasi sinyal BUY langsung ke Telegram.
 
 ## 🛠️ Arsitektur Aplikasi
-- **Backend Core**: Python 3.10+
-- **Database/Storage**: JSON Caching & Parquet
-- **Dashboard**: Streamlit (Control Center)
-- **GUI Framework**: PyWebView
-- **Machine Learning**: XGBoost, Scikit-Learn
-- **Data Source**: Yahoo Finance, Wikipedia, Kontan
+- **Backend**: Python 3.10+
+- **Database**: JSON, Parquet, & SQLite (Historical Picks)
+- **Model**: XGBoost (Versioned)
+- **Data Source**: Yahoo Finance, Wikipedia, CNBC Indonesia, Kontan
 
-## 📦 File Penting
-- `desktop_app.py`: Titik masuk utama aplikasi desktop.
-- `main.py`: Mesin utama AI untuk pelatihan dan prediksi.
-- `dashboard/app.py`: Antarmuka visual (Dashboard).
-- `data/data_loader.py`: Modul pengambilan data cerdas.
-- `features/feature_engineering.py`: Modul pengolahan data teknis.
+## 📂 Struktur File Penting
+- `main.py`: Pipeline utama (Fetch -> Predict -> Backtest -> Notify).
+- `config.yaml`: Pusat pengaturan parameter strategi.
+- `dashboard/app.py`: Dashboard analisis visual & monitoring.
+- `models/versions/`: Folder histori model AI yang telah dilatih.
+- `logs/`: Catatan aktivitas dan error sistem.
+- `tests/`: Unit testing untuk menjaga stabilitas kode.
 
 ## 🚀 Cara Menjalankan
-1. Pastikan Anda berada di virtual environment: `source venv/bin/activate`
-2. Jalankan aplikasi desktop: `python3 desktop_app.py`
-3. Atau buka dashboard saja: `streamlit run dashboard/app.py`
+1.  **Persiapan Virtual Environment**:
+    ```bash
+    # Masuk ke environment (pastikan folder .venv dihapus jika ada duplikat)
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+2.  **Konfigurasi**:
+    Buka `config.yaml` untuk menyesuaikan modal awal, threshold, atau daftar saham target.
+3.  **Jalankan Bot**:
+    ```bash
+    python3 main.py
+    ```
+4.  **Buka Dashboard**:
+    ```bash
+    streamlit run dashboard/app.py
+    ```
 
 ---
 Developed with ❤️ for the Indonesian Trading Community.

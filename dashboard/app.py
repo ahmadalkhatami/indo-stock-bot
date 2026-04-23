@@ -7,55 +7,82 @@ import plotly.express as px
 import subprocess
 import sys
 import time
+import json
+import requests
+from streamlit_lottie import st_lottie
 
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACT_DIR = os.path.join(ROOT, 'data', 'artifacts')
 PICKS_FILE   = os.path.join(ROOT, 'data', 'latest_picks.csv')
+LOGS_DIR     = os.path.join(ROOT, 'logs')
 
-st.set_page_config(page_title="Indo Stock Prediction", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Indo Stock Bot v2.0 - Premium", layout="wide", initial_sidebar_state="expanded")
 
-# --- CUSTOM CSS PREMIUM DESIGN ---
+# --- UTILS ---
+def load_lottieurl(url: str):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+# --- PREMIUM STYLING ---
 st.markdown("""
 <style>
-    /* Global Background and Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    
     .stApp {
-        background-color: #0d1117;
+        background: radial-gradient(circle at top left, #1a1f2c, #0d1117);
+        color: #c9d1d9;
         font-family: 'Inter', sans-serif;
     }
     
-    /* Metrics Box Customization (Glassmorphism & Gradients) */
-    [data-testid="stMetricValue"] {
-        font-size: 28px !important;
-        font-weight: 800 !important;
-        color: #58a6ff !important;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        color: #8b949e !important;
+    /* Glassmorphism Containers */
+    div[data-testid="stMetric"] {
+        background: rgba(22, 27, 34, 0.6);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(48, 54, 61, 0.5);
+        border-radius: 12px;
+        padding: 15px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
     
-    /* Sidebar Styling */
+    [data-testid="stMetricValue"] {
+        color: #58a6ff !important;
+        font-weight: 800 !important;
+    }
+    
+    /* Sidebar styling */
     section[data-testid="stSidebar"] {
-        background-color: #161b22;
+        background-color: rgba(13, 17, 23, 0.9) !important;
         border-right: 1px solid #30363d;
     }
     
-    /* Headings and Titles */
-    h1, h2, h3 {
-        color: #c9d1d9 !important;
-        margin-bottom: 20px;
+    /* Buttons */
+    .stButton>button {
+        background: linear-gradient(90deg, #238636 0%, #2ea043 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(46, 160, 67, 0.4);
     }
     
-    /* Dataframes and Tables */
-    .stDataFrame {
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #30363d;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    /* Tab Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent;
+        border-radius: 4px;
+        padding: 10px 20px;
     }
 </style>
 """, unsafe_allow_html=True)
+
 @st.cache_data
 def load_artifacts():
     paths = {
@@ -68,334 +95,175 @@ def load_artifacts():
     }
     return {k: (pd.read_csv(p) if os.path.exists(p) else None) for k, p in paths.items()}
 
-
 @st.cache_data
 def load_picks():
     return pd.read_csv(PICKS_FILE) if os.path.exists(PICKS_FILE) else pd.DataFrame()
 
-
 def _pct(x, sign=False):
-    if x is None or (isinstance(x, float) and np.isnan(x)):
-        return "N/A"
+    if x is None or (isinstance(x, float) and np.isnan(x)): return "N/A"
     return f"{x*100:+.2f}%" if sign else f"{x*100:.2f}%"
 
-
 def _inf_fmt(x):
-    if x is None or (isinstance(x, float) and np.isnan(x)):
-        return "N/A"
-    if x == float('inf'):
-        return "∞"
-    return f"{x:.2f}"
+    if x is None or (isinstance(x, float) and np.isnan(x)): return "N/A"
+    return "∞" if x == float('inf') else f"{x:.2f}"
 
+# --- SIDEBAR ---
+st.sidebar.title("💎 IndoStockBot v2.0")
+lottie_trading = load_lottieurl("https://assets9.lottiefiles.com/packages/lf20_m6o6tpuk.json")
+if lottie_trading: st_lottie(lottie_trading, height=150, key="sidebar_lottie")
 
-st.sidebar.title("Indo Stock Predictor")
-page = st.sidebar.radio("Pages", [
-    "Overview",
-    "Equity Curve",
-    "Top Picks Today",
-    "Backtest Analysis",
-    "Model Performance",
+page = st.sidebar.radio("Navigation", [
+    "🚀 Market Overview",
+    "📈 Equity & Analytics",
+    "🎯 Top Predictions",
+    "🛡️ Backtest Report",
+    "🤖 Model Health",
+    "📋 System Logs"
 ])
-st.sidebar.markdown("---")
-st.sidebar.caption("Run `python main.py` to refresh data.")
 
-arts  = load_artifacts()
+st.sidebar.divider()
+st.sidebar.caption("System Status: Operational")
+
+arts = load_artifacts()
 picks = load_picks()
 
+# ─── NAVIGATION LOGIC ────────────────────────────────────────────────────────
 
-# ─── Overview ────────────────────────────────────────────────────────────────
-if page == "Overview":
-    st.title("Strategy Overview")
-    if arts['metrics'] is None:
-        st.warning("No metrics found. Run `python main.py` first.")
+if page == "🚀 Market Overview":
+    st.title("Market Overview")
+    if arts['metrics'] is None or arts['metrics'].empty:
+        st.warning("No metrics found or metrics file is empty. Run AI Prediction first.")
         st.stop()
 
     m = arts['metrics'].iloc[0].to_dict()
-
-    # ── SIDEBAR CONTROL ─────────────────────────────────────────────
+    
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/1693/1693746.png", width=80)
-        st.title("Control Panel")
+        st.subheader("Control Center")
         
         # --- SCHEDULER SECTION ---
-        st.subheader("⏰ Auto Scheduler")
-        sched_time = st.text_input("Run Time (WIB)", value="16:30", help="Format HH:MM")
-        is_active = st.toggle("Enable Daily Scheduler", value=True)
-        
-        # Simpan ke file untuk dibaca oleh desktop_app.py
-        import json
+        st.write("⏰ **Auto Scheduler**")
         config_path = os.path.join(ROOT, "data", "scheduler_config.json")
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump({"time": sched_time, "active": is_active}, f)
         
-        if is_active:
-            st.success(f"Scheduler active for {sched_time}")
-            
-        st.divider()
-
-        # --- FOREIGN FLOW INSIGHTS ---
-        st.subheader("🌐 Foreign Intelligence")
-        try:
-            # Load foreign flow data if exists in latest df
-            if 'df' in globals() and df is not None and 'F_Net' in df.columns:
-                today_ff = df.groupby('Ticker')['F_Net'].last().sort_values(ascending=False).head(5)
-                st.write("Top 5 Foreign Net Buy:")
-                for tick, val in today_ff.items():
-                    st.caption(f"**{tick.split('.')[0]}**: {val:,.0f} shares")
-        except:
-            st.caption("Data incoming...")
+        # Load existing config
+        current_sched = {"time": "16:30", "active": True}
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                current_sched = json.load(f)
+        
+        col_s1, col_s2 = st.columns([2, 1])
+        with col_s1:
+            new_time = st.text_input("Run Time (WIB)", value=current_sched.get("time", "16:30"), label_visibility="collapsed")
+        with col_s2:
+            new_active = st.toggle("On", value=current_sched.get("active", True), label_visibility="collapsed")
+        
+        # Save on change
+        if new_time != current_sched.get("time") or new_active != current_sched.get("active"):
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, "w") as f:
+                json.dump({"time": new_time, "active": new_active}, f)
+            st.toast("Scheduler updated!", icon="⏰")
 
         st.divider()
 
         # --- MANUAL RUN ---
-        if st.button("🚀 RUN AI PREDICTION", use_container_width=True):
-            with st.status("AI is calculating...", expanded=True) as status:
-                st.write("Fetching market data...")
-                env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONHOME")}
+        if st.button("🚀 EXECUTE AI PIPELINE", use_container_width=True):
+            with st.status("Initializing AI engine...", expanded=True) as status:
                 process = subprocess.Popen(
-                    [sys.executable.replace("dashboard/app.py", "venv/bin/python3"), "main.py"],
-                    cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+                    [sys.executable, os.path.join(ROOT, "main.py")],
+                    cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
                 )
-                for line in process.stdout:
-                    st.text(line.strip())
+                for line in process.stdout: st.text(line.strip())
                 process.wait()
-                status.update(label="AI Analysis Complete!", state="complete", expanded=False)
-                st.success("Data updated successfully!")
-                time.sleep(2)
+                status.update(label="Analysis Finished!", state="complete")
+                st.success("Strategy refreshed.")
+                time.sleep(1.5)
                 st.rerun()
 
-        st.divider()
-        st.caption("v1.2 Premium Edition")
-
-    # ── Returns & Drawdown ──────────────────────────────────────────────────
-    st.subheader("Performance")
+    # Metrics
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Return",  _pct(m.get('total_return'), sign=True))
-    c2.metric("CAGR",          _pct(m.get('cagr'), sign=True))
-    c3.metric("Max Drawdown",  _pct(m.get('max_drawdown')))
-    c4.metric("Sharpe Ratio",  f"{m.get('sharpe_ratio', 0):.2f}")
+    c1.metric("Total Return", _pct(m.get('total_return'), True))
+    c2.metric("Win Rate", _pct(m.get('win_rate')))
+    c3.metric("Sharpe Ratio", f"{m.get('sharpe_ratio', 0):.2f}")
+    c4.metric("Max Drawdown", _pct(m.get('max_drawdown')))
 
-    bench = m.get('benchmark_total_return')
-    if bench is not None and not np.isnan(float(bench)):
-        alpha = m.get('total_return', 0) - float(bench)
-        c5, c6, c7, c8 = st.columns(4)
-        c5.metric("Benchmark (IHSG)", _pct(float(bench), sign=True))
-        c6.metric("Alpha vs IHSG",    _pct(alpha, sign=True))
-        c7.metric("Avg Exposure",     _pct(m.get('avg_exposure')))
-        c8.metric("Trades Executed",  int(m.get('num_trades', 0)))
-    else:
-        c5, c6, c7 = st.columns(3)
-        c5.metric("Avg Exposure",    _pct(m.get('avg_exposure')))
-        c6.metric("Trades Executed", int(m.get('num_trades', 0)))
-        c7.metric("Win Rate",        _pct(m.get('win_rate')))
-
-    # ── Risk Metrics Panel ───────────────────────────────────────────────────
+    # Benchmark Comparison
     st.markdown("---")
-    st.subheader("Risk Metrics")
-    r1, r2, r3, r4 = st.columns(4)
-    r1.metric("Win Rate",        _pct(m.get('win_rate')))
-    r2.metric("Profit Factor",   _inf_fmt(m.get('profit_factor')))
-    r3.metric("Win / Loss Ratio",_inf_fmt(m.get('win_loss_ratio')))
-    r4.metric("Avg Exposure",    _pct(m.get('avg_exposure')))
+    st.subheader("Benchmark Comparison (IHSG)")
+    bench_ret = m.get('benchmark_total_return', 0)
+    alpha = m.get('total_return', 0) - float(bench_ret)
+    b1, b2, b3 = st.columns(3)
+    b1.metric("Alpha", _pct(alpha, True))
+    b2.metric("IHSG Return", _pct(float(bench_ret)))
+    b3.metric("Total Trades", int(m.get('num_trades', 0)))
 
-    r5, r6, r7, r8 = st.columns(4)
-    r5.metric("Avg Gain / Trade", _pct(m.get('avg_gain'), sign=True))
-    r6.metric("Avg Loss / Trade", _pct(m.get('avg_loss'), sign=True))
-    r7.metric("Gross Profit",     f"Rp {m.get('gross_profit', 0):,.0f}")
-    r8.metric("Gross Loss",       f"Rp {m.get('gross_loss', 0):,.0f}")
-
-    # ── Model Metrics ────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Model Metrics (OOF)")
-    mc1, mc2, mc3 = st.columns(3)
-    mc1.metric("ROC-AUC",  f"{m.get('roc_auc', 0):.4f}")
-    mc2.metric("Precision",f"{m.get('precision', 0):.4f}")
-    mc3.metric("Recall",   f"{m.get('recall', 0):.4f}")
-
-
-# ─── Equity Curve ────────────────────────────────────────────────────────────
-elif page == "Equity Curve":
-    st.title("Equity Curve")
-    eq    = arts['equity']
-    bench = arts['benchmark']
-
-    if eq is None:
-        st.warning("No equity curve found. Run `python main.py` first.")
-        st.stop()
-
-    eq['Date'] = pd.to_datetime(eq['Date'])
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=eq['Date'], y=eq['equity'],
-        name='Strategy', line=dict(color='#2E86DE', width=2),
-    ))
-    if bench is not None and not bench.empty:
-        bench['Date'] = pd.to_datetime(bench['Date'])
-        fig.add_trace(go.Scatter(
-            x=bench['Date'], y=bench['benchmark_equity'],
-            name='IHSG Buy & Hold', line=dict(color='#E67E22', dash='dash'),
-        ))
-    fig.update_layout(
-        xaxis_title="Date", yaxis_title="Portfolio Value (IDR)",
-        hovermode='x unified', height=480,
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Exposure bar
-    st.subheader("Daily Exposure")
-    fig2 = px.area(eq, x='Date', y='exposure_pct', height=260)
-    fig2.update_layout(yaxis_tickformat='.0%', yaxis_title='Exposure')
-    st.plotly_chart(fig2, use_container_width=True)
-
-
-# ─── Top Picks Today ─────────────────────────────────────────────────────────
-elif page == "Top Picks Today":
-    st.title("Top Picks Today")
-
-    if picks.empty:
-        st.info("No picks file found. Run `python main.py` first.")
-        st.stop()
-
-    buy = picks[picks['signal'] == 'BUY'] if 'signal' in picks.columns else pd.DataFrame()
-    if buy.empty:
-        st.warning("No high-confidence signals today (threshold not met).")
-    else:
-        st.success(f"{len(buy)} high-confidence signal(s) today.")
-
-    display = picks.copy()
-    if 'probability' in display.columns:
-        display['probability'] = display['probability'].apply(lambda x: f"{x*100:.2f}%")
-    if 'Close' in display.columns:
-        display['Close'] = display['Close'].apply(lambda x: f"Rp {x:,.0f}")
-    st.dataframe(display, use_container_width=True)
-
-
-# ─── Backtest Analysis ────────────────────────────────────────────────────────
-elif page == "Backtest Analysis":
-    st.title("Backtest Analysis")
+elif page == "📈 Equity & Analytics":
+    st.title("Equity Analytics")
     eq = arts['equity']
+    if eq is not None:
+        eq['Date'] = pd.to_datetime(eq['Date'])
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=eq['Date'], y=eq['equity'], name='Strategy', line=dict(color='#00d4ff', width=3)))
+        if arts['benchmark'] is not None:
+            bench = arts['benchmark']
+            bench['Date'] = pd.to_datetime(bench['Date'])
+            fig.add_trace(go.Scatter(x=bench['Date'], y=bench['benchmark_equity'], name='IHSG', line=dict(color='#ff9f43', dash='dash')))
+        fig.update_layout(template='plotly_dark', height=500, title="Growth of 100M IDR")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Run backtest to see results.")
 
-    if eq is None:
-        st.warning("No equity curve found. Run `python main.py` first.")
-        st.stop()
+elif page == "🎯 Top Predictions":
+    st.title("Top AI Picks")
+    if picks.empty:
+        st.info("No picks available. Please run the AI pipeline from the Overview page.")
+    else:
+        # Pre-process picks to ensure numerical columns for styling
+        if 'probability' in picks.columns:
+            picks['probability'] = pd.to_numeric(picks['probability'], errors='coerce')
+        
+        try:
+            st.dataframe(
+                picks.style.background_gradient(subset=['probability'], cmap='Greens'),
+                use_container_width=True
+            )
+        except:
+            # Silent fallback for production: clean UI even if styling encounters edge cases
+            st.dataframe(picks, use_container_width=True)
 
-    eq['Date'] = pd.to_datetime(eq['Date'])
-
-    # Equity Curve (repeated here for quick access)
-    bench = arts['benchmark']
-    fig_eq = go.Figure()
-    fig_eq.add_trace(go.Scatter(
-        x=eq['Date'], y=eq['equity'], name='Strategy', line=dict(color='#2E86DE'),
-    ))
-    if bench is not None and not bench.empty:
-        bench['Date'] = pd.to_datetime(bench['Date'])
-        fig_eq.add_trace(go.Scatter(
-            x=bench['Date'], y=bench['benchmark_equity'],
-            name='IHSG', line=dict(color='#E67E22', dash='dash'),
-        ))
-    fig_eq.update_layout(hovermode='x unified', height=380, yaxis_title='IDR')
-    st.plotly_chart(fig_eq, use_container_width=True)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Daily Returns")
-        colors = ['#27AE60' if r >= 0 else '#E74C3C' for r in eq['daily_return']]
-        fig_ret = go.Figure(go.Bar(
-            x=eq['Date'], y=eq['daily_return'], marker_color=colors,
-        ))
-        fig_ret.update_layout(yaxis_tickformat='.2%', height=320)
-        st.plotly_chart(fig_ret, use_container_width=True)
-
-    with col2:
-        st.subheader("Drawdown")
-        fig_dd = go.Figure()
-        fig_dd.add_trace(go.Scatter(
-            x=eq['Date'], y=eq['drawdown'],
-            fill='tozeroy', line=dict(color='#E74C3C', width=1), name='Drawdown',
-        ))
-        fig_dd.update_layout(yaxis_tickformat='.2%', height=320)
-        st.plotly_chart(fig_dd, use_container_width=True)
-
-    # Trade log
+elif page == "🛡️ Backtest Report":
+    st.title("Strategy Forensics")
     trades = arts['trades']
     if trades is not None and not trades.empty:
-        st.subheader(f"Trade Log ({len(trades)} trades)")
-
-        # Exit reason summary
-        if 'exit_reason' in trades.columns:
-            summary = trades['exit_reason'].value_counts().reset_index()
-            summary.columns = ['Exit Reason', 'Count']
-            wins   = trades[trades['pnl'] > 0]
-            losses = trades[trades['pnl'] <= 0]
-
-            ec1, ec2, ec3, ec4 = st.columns(4)
-            ec1.metric("TP hits",      int(summary[summary['Exit Reason']=='TP']['Count'].sum() if 'TP' in summary['Exit Reason'].values else 0))
-            ec2.metric("SL hits",      int(summary[summary['Exit Reason']=='SL']['Count'].sum() if 'SL' in summary['Exit Reason'].values else 0))
-            ec3.metric("MaxHold exits",int(summary[summary['Exit Reason']=='MaxHold']['Count'].sum() if 'MaxHold' in summary['Exit Reason'].values else 0))
-            ec4.metric("Win Rate",     f"{len(wins)/len(trades)*100:.1f}%")
-
-            fig_exit = px.pie(summary, names='Exit Reason', values='Count',
-                              title='Exit Reason Distribution', height=280)
-            st.plotly_chart(fig_exit, use_container_width=True)
-
-        # PnL distribution
-        fig_pnl = px.histogram(
-            trades, x='return_pct', nbins=40, title='Return per Trade Distribution',
-            color_discrete_sequence=['#2E86DE'], height=280,
-        )
-        fig_pnl.update_layout(xaxis_tickformat='.1%')
-        st.plotly_chart(fig_pnl, use_container_width=True)
-
-        # Table
-        t = trades.copy()
-        t['entry_date'] = pd.to_datetime(t['entry_date']).dt.date
-        t['exit_date']  = pd.to_datetime(t['exit_date']).dt.date
-        t['return_pct'] = t['return_pct'].apply(lambda x: f"{x*100:+.2f}%")
-        t['pnl']        = t['pnl'].apply(lambda x: f"Rp {x:,.0f}")
-        t['cost']       = t['cost'].apply(lambda x: f"Rp {x:,.0f}")
-        display_cols = [c for c in [
-            'ticker', 'entry_date', 'exit_date', 'days_held',
-            'exit_reason', 'return_pct', 'pnl', 'cost',
-        ] if c in t.columns]
-        st.dataframe(t[display_cols].sort_values('exit_date', ascending=False), use_container_width=True)
+        st.subheader(f"Trade History ({len(trades)} Positions)")
+        st.dataframe(trades, use_container_width=True)
     else:
-        st.info("No trades recorded.")
+        st.info("No trades to display.")
 
-
-# ─── Model Performance ────────────────────────────────────────────────────────
-elif page == "Model Performance":
-    st.title("Model Performance")
-
-    roc = arts['roc']
-    if roc is not None:
-        st.subheader("ROC Curve (last CV fold)")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=roc['fpr'], y=roc['tpr'],
-            name='Model', line=dict(color='#2E86DE'),
-        ))
-        fig.add_trace(go.Scatter(
-            x=[0, 1], y=[0, 1],
-            name='Random', line=dict(dash='dash', color='gray'),
-        ))
-        fig.update_layout(xaxis_title='FPR', yaxis_title='TPR', height=420)
-        st.plotly_chart(fig, use_container_width=True)
-
-    fi = arts['feat_imp']
-    if fi is not None:
-        st.subheader("Feature Importance")
-        fi_s = fi.sort_values('importance', ascending=True)
-        fig2 = px.bar(fi_s, x='importance', y='feature', orientation='h', height=500)
-        st.plotly_chart(fig2, use_container_width=True)
-
+elif page == "🤖 Model Health":
+    st.title("AI Model Diagnostic")
     if arts['metrics'] is not None:
-        m = arts['metrics'].iloc[0].to_dict()
-        st.subheader("OOF Classification Metrics")
+        m = arts['metrics'].iloc[0]
         c1, c2, c3 = st.columns(3)
-        c1.metric("ROC-AUC",  f"{m.get('roc_auc', 0):.4f}")
-        c2.metric("Precision",f"{m.get('precision', 0):.4f}")
-        c3.metric("Recall",   f"{m.get('recall', 0):.4f}")
+        c1.metric("AUC-ROC", f"{m['roc_auc']:.4f}")
+        c2.metric("Precision", f"{m['precision']:.4f}")
+        c3.metric("Recall", f"{m['recall']:.4f}")
+        
+    if arts['feat_imp'] is not None:
+        st.subheader("Feature Importance")
+        st.bar_chart(arts['feat_imp'].set_index('feature')['importance'])
+
+elif page == "📋 System Logs":
+    st.title("System Diagnostics")
+    log_files = []
+    if os.path.exists(LOGS_DIR):
+        log_files = [f for f in os.listdir(LOGS_DIR) if f.endswith('.log')]
+    
+    if not log_files:
+        st.info("No log files found.")
+    else:
+        selected_log = st.selectbox("Select Log File", sorted(log_files, reverse=True))
+        log_path = os.path.join(LOGS_DIR, selected_log)
+        with open(log_path, 'r') as f:
+            lines = f.readlines()
+            st.text_area("Last 100 entries", "".join(lines[-100:]), height=600)
+            st.button("Refresh Logs")

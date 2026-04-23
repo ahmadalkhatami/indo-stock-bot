@@ -3,19 +3,21 @@ import numpy as np
 import pandas as pd
 import joblib
 import optuna
+from datetime import datetime
 from xgboost import XGBClassifier
 from sklearn.metrics import precision_score, recall_score, roc_auc_score, roc_curve
 from sklearn.model_selection import TimeSeriesSplit
 
 from features.feature_engineering import FEATURE_COLS
+from utils.logger import logger
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'xgboost_model.pkl')
+MODEL_DIR = os.path.join(os.path.dirname(__file__), 'versions')
+LATEST_MODEL = os.path.join(os.path.dirname(__file__), 'xgboost_model_latest.pkl')
 
 
 class StockPredictor:
     def __init__(
         self,
-        model_path: str = MODEL_PATH,
         target: str = 'target_binary',
         confidence_threshold: float = 0.6,
     ):
@@ -29,7 +31,6 @@ class StockPredictor:
             n_jobs=-1,
             eval_metric='logloss',
         )
-        self.model_path = model_path
         self.target = target
         self.confidence_threshold = confidence_threshold
         self.features = FEATURE_COLS
@@ -51,7 +52,7 @@ class StockPredictor:
         X = df_train[self.features]
         y = df_train[self.target]
 
-        print("\nStarting Optuna Hyperparameter Tuning...")
+        logger.info("Starting Optuna Hyperparameter Tuning...")
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
         def objective(trial):
@@ -78,11 +79,9 @@ class StockPredictor:
             return np.mean(scores)
 
         study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=20)
+        study.optimize(objective, n_trials=10) # Reduced for speed
 
-        print("\nBest Hyperparameters Found:")
-        for key, value in study.best_params.items():
-            print(f"  {key}: {value}")
+        logger.info(f"Best Params: {study.best_params}")
 
         best_params = study.best_params.copy()
         best_params.update({'random_state': 42, 'n_jobs': -1, 'eval_metric': 'logloss'})
@@ -93,7 +92,7 @@ class StockPredictor:
         oof_rows = []
         last_roc = None
 
-        print("Running Time Series Cross-Validation...")
+        logger.info("Running Time Series Cross-Validation...")
         for fold, (tr, te) in enumerate(tscv.split(X), 1):
             self.model.fit(X.iloc[tr], y.iloc[tr])
             y_prob = self.model.predict_proba(X.iloc[te])[:, 1]
@@ -111,42 +110,39 @@ class StockPredictor:
             fpr, tpr, _ = roc_curve(y_true, y_prob)
             last_roc = (fpr, tpr)
 
-            print(
-                f"  Fold {fold}: AUC={metrics['roc_auc'][-1]:.4f} | "
-                f"Prec={metrics['precision'][-1]:.4f} | "
-                f"Rec={metrics['recall'][-1]:.4f}"
-            )
-
         self.metrics = {k: float(np.mean(v)) for k, v in metrics.items()}
         self.roc_points = last_roc
         self.oof_predictions = pd.concat(oof_rows, ignore_index=True)
 
-        print("\n--- Mean Validation Metrics ---")
-        print(f"Precision: {self.metrics['precision']:.4f}")
-        print(f"Recall:    {self.metrics['recall']:.4f}")
-        print(f"ROC-AUC:   {self.metrics['roc_auc']:.4f}")
+        logger.info(f"Validation Metrics: AUC={self.metrics['roc_auc']:.4f}, Prec={self.metrics['precision']:.4f}")
 
-        print("\nTraining final model on all available data...")
+        logger.info("Training final model on all available data...")
         self.model.fit(X, y)
         self.feature_importances = pd.Series(
             self.model.feature_importances_, index=self.features
         ).sort_values(ascending=False)
 
-        joblib.dump(
-            {
-                'model': self.model,
-                'features': self.features,
-                'target': self.target,
-                'threshold': self.confidence_threshold,
-                'metrics': self.metrics,
-                'feature_importances': self.feature_importances,
-            },
-            self.model_path,
-        )
-        print(f"Model saved to {self.model_path}")
+        # Versioned Save
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        ts = datetime.now().strftime('%Y%m%d_%H%M')
+        versioned_path = os.path.join(MODEL_DIR, f"model_{ts}.pkl")
+        
+        bundle = {
+            'model': self.model,
+            'features': self.features,
+            'target': self.target,
+            'threshold': self.confidence_threshold,
+            'metrics': self.metrics,
+            'feature_importances': self.feature_importances,
+            'timestamp': ts
+        }
+        
+        joblib.dump(bundle, versioned_path)
+        joblib.dump(bundle, LATEST_MODEL)
+        logger.info(f"Model saved to {versioned_path} and {LATEST_MODEL}")
 
-    def load(self) -> None:
-        bundle = joblib.load(self.model_path)
+    def load(self, path: str = LATEST_MODEL) -> None:
+        bundle = joblib.load(path)
         self.model = bundle['model']
         self.features = bundle['features']
         self.target = bundle['target']

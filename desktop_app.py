@@ -7,7 +7,7 @@ import sys
 import schedule
 
 # --- CONFIGURATION ---
-ROOT = "/Users/ahmadalkhatami/Documents/Stock-Bot/indo-stock-bot"
+ROOT = os.path.dirname(os.path.abspath(__file__))
 STREAMLIT = os.path.join(ROOT, "venv", "bin", "streamlit")
 APP_PY = os.path.join(ROOT, "dashboard", "app.py")
 PYTHON = os.path.join(ROOT, "venv", "bin", "python3")

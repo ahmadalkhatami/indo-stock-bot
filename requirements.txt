@@ -12,3 +12,9 @@ shap
 lightgbm
 optuna
 sqlalchemy
+pyyaml
+pytest
+requests
+beautifulsoup4
+streamlit-lottie
+matplotlib

@@ -12,11 +12,12 @@ FEATURE_COLS = [
     'rsi_14', 'macd_diff', 'bb_width',
     'close_zscore_20',
     'usd_idr_return', 'sp500_return',
-    'foreign_flow_ratio', 'foreign_trend_7d'
+    'foreign_flow_ratio', 'foreign_trend_7d',
+    'sentiment_score'
 ]
 
 
-def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
+def add_features_and_labels(df: pd.DataFrame, sentiment_score: float = 0.0) -> pd.DataFrame:
     """
     Generate technical indicators, macro features, foreign flow, and target labels.
 
@@ -78,9 +79,10 @@ def add_features_and_labels(df: pd.DataFrame) -> pd.DataFrame:
         std20 = close.rolling(20).std()
         g['close_zscore_20'] = (close - sma20) / (std20 + 1e-9)
 
-        # Macro returns
+        # Macro & Sentiment
         g['usd_idr_return'] = g['USD_IDR'].pct_change(fill_method=None) if 'USD_IDR' in g.columns else 0.0
         g['sp500_return'] = g['SP500'].pct_change(fill_method=None) if 'SP500' in g.columns else 0.0
+        g['sentiment_score'] = sentiment_score
 
         # Targets
         future_return = (close.shift(-3) - close) / close
